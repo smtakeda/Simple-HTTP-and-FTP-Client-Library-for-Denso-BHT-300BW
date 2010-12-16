@@ -1,0 +1,717 @@
+'##########################################################################
+'
+' HTTP communication
+' 
+' Set the following parameters:
+'   - Com.Http.ADDRESS$
+'   - Com.Http.PORT%
+'   - Com.Http.URLPREFIX$
+'   - Com.Http.HOSTNAME$
+' by reading CCONFIG.DAT
+'
+'##########################################################################
+
+'$include:'bhtdef.inc'
+'$include:'const.inc'
+'$include:'util.inc'
+'$include:'screen.def'
+'$include:'com.def'
+
+const Com.Status.FtpOpened=4
+const Com.Status.FtpDataReceived=5
+const Com.Status.FtpClosed=6
+
+'------------------------------------------------------------ 
+' module private variables
+'------------------------------------------------------------ 
+  private werr
+  private hCom3%: hCom3% = 2
+  private interface%
+  private sockfd%
+  private ftpHandle%
+
+'------------------------------------------------------------ 
+' open device
+'------------------------------------------------------------ 
+  function Com.TcpIp.OpenDevice%(status%)
+    private iftype%
+    private layermode%
+    private timeout%
+    private assoc%
+
+    if status% <> Com.Status.Init then
+      werr=-1
+      Util.errlog("Com.TcpIp.OpenDevice",werr,status%)
+      goto opendevice.resume
+    end if
+
+    '-- set tcp/ip
+    iftype%=2 ' SS wireless device
+    layermode%=2
+    call "socket.fn3" .fcTSetup iftype%,layermode%,interface%
+
+    on error goto opendevice.err
+
+    '-- open device
+    hCom3%=2
+    open "COM3:" AS #hCom3%
+    status%=Com.Status.DeviceOpened
+
+    timeout% = 100 '-- 10 sec
+    call "ss.fn3" .fcSyncInf timeout%, assoc%
+    if assoc% = -1 then
+      werr=-1
+      Util.errlog("Com.TcpIp.OpenDevice",werr,status%)
+      goto opendevice.resume
+    endif
+
+    Com.TcpIp.OpenDevice%=status%
+    on error goto 0
+    exit function
+opendevice.err:
+    werr = err
+    Util.errlog("Com.TcpIp.OpenDevice",werr,status%)
+    resume opendevice.resume
+
+opendevice.resume:
+    on error goto 0
+    Com.TcpIp.OpenDevice%=Com.Status.Init
+  end function
+
+'------------------------------------------------------------ 
+' close device
+'------------------------------------------------------------ 
+  function Com.TcpIp.CloseDevice%(status%)
+    if status% < Com.Status.DeviceOpened then
+      werr=-1
+      Util.errlog("Com.TcpIp.CloseDevice",werr,status%)
+      goto closedevice.resume
+    end if
+
+    close #hCom3%
+
+closedevice.resume:
+    Com.TcpIp.CloseDevice%=Com.Status.DeviceClosed
+  end function
+
+'------------------------------------------------------------ 
+' open TCP/IP
+'------------------------------------------------------------ 
+  function Com.TcpIp.Open%(status%)
+    if status% <> Com.Status.DeviceOpened then
+      werr=-1
+      Util.errlog("Com.TcpIp.Open",werr,status%)
+      goto tcpopen.resume
+    end if
+
+    on error goto tcpopen.err
+
+    '-- open tcp/ip
+    call "socket.fn3" .fcTCnnSys interface%
+    status%=Com.Status.Opened
+
+    Com.TcpIp.Open%=status%
+    on error goto 0
+    exit function
+
+tcpopen.err:
+    werr = err
+    Util.errlog("Com.TcpIp.Open",werr,status%)
+    resume tcpopen.resume
+
+tcpopen.resume:
+    on error goto 0
+    status%=Com.TcpIp.CloseDevice%(status%)
+    Com.TcpIp.Open%=Com.Status.Init
+  end function
+
+'------------------------------------------------------------ 
+' close TCP/IP
+'------------------------------------------------------------ 
+  function Com.TcpIp.Close%(status%)
+    if status% < Com.Status.Opened then
+      werr=-1
+      Util.errlog("Com.TcpIp.Close",werr,status%)
+      goto tcpclose.resume
+    end if
+
+    call "socket.fn3" .fcTDiscnn interface%
+tcpclose.resume:
+    Com.TcpIp.Close%=Com.Status.Closed
+  end function
+
+'------------------------------------------------------------ 
+' open socket
+'------------------------------------------------------------ 
+  function Com.TcpIp.OpenSocket%(status%)
+    private family%
+    private type%
+    private protocol%
+    private nport%
+
+    if status% <> Com.Status.Opened then
+      werr=-1
+      Util.errlog("Com.TcpIp.OpenSocket",werr,status%)
+      goto socketopen.resume
+    end if
+
+    on error goto socketopen.err
+
+    '-- create a socket
+    family%=.soINet
+    type%=.soStream
+    protocol%=.soTCP
+    call "socket.fn3" .fcSocket family%,type%,protocol%,sockfd%
+    status%=Com.Status.SocketCreated
+
+    private option
+    private optname%
+
+    '-- no keep tcp socket
+    optname%=.soTIMEWAIT
+    option=0
+    call "socket.fn3" .fcSSckOpt sockfd%,optname%,option
+
+    '-- connect to socket
+    call "socket.fn3" .fcHToNS Com.Http.PORT%,nport%
+    call "socket.fn3" .fcConnect sockfd%,family%,nport%,Com.Http.ADDRESS$
+    status%=Com.Status.SocketConnected
+
+    Com.TcpIp.OpenSocket%=status%
+    on error goto 0
+    exit function
+
+socketopen.err:
+    werr = err
+    Util.errlog("Com.TcpIp.OpenSocket",werr,status%)
+    resume socketopen.resume
+
+socketopen.resume:
+    on error goto 0
+    Com.TcpIp.OpenSocket%=Com.TcpIp.Close%(status%)
+    if (werr<>&h105) and (werr<>&h450) then
+      Com.TcpIp.OpenSocket%=Com.Status.DeviceOpened
+    end if
+  end function
+
+'------------------------------------------------------------ 
+' close socket
+'------------------------------------------------------------ 
+  function Com.TcpIp.CloseSocket%(status%)
+    if status% < Com.Status.SocketConnected then
+      werr=-1
+      Util.errlog("Com.TcpIp.CloseSocket",werr,status%)
+      goto socketclose.resume
+    end if
+
+    call "socket.fn3" .fcClose sockfd%
+
+socketclose.resume:    
+    Com.TcpIp.CloseSocket%=Com.Status.SocketClosed
+  end function
+
+'------------------------------------------------------------ 
+' send data
+'------------------------------------------------------------ 
+  function Com.Http.SendData%(mode%,req$,param$,status%)
+    private sendlen%
+    private sendmode%
+    private sendsize%
+
+    if status% <>Com.Status.SocketConnected then
+      werr=-1
+      Util.errlog("Com.Http.SendData",werr,status%)
+      goto senddata.resume
+    end if
+
+    on error goto senddata.err
+
+    '-- send data
+    if mode%=Com.Http.GetMode then
+      '-- GET
+      Com.Http.Sendbuff$="GET "+req$+" HTTP/1.0"+Com.Http.EOL$
+      Com.Http.Sendbuff$=Com.Http.Sendbuff$+"Host: "+Com.Http.HOSTNAME$+Com.Http.EOL$
+      Com.Http.Sendbuff$=Com.Http.Sendbuff$+"User-Agent: BHT300BW"+Com.Http.EOL$
+      Com.Http.Sendbuff$=Com.Http.Sendbuff$+Com.Http.EOLEOL$
+    else
+      '-- POST
+      Com.Http.Sendbuff$="POST "+req$+" HTTP/1.0"+Com.Http.EOL$
+      Com.Http.Sendbuff$=Com.Http.Sendbuff$+"Host: "+Com.Http.HOSTNAME$+Com.Http.EOL$
+      Com.Http.Sendbuff$=Com.Http.Sendbuff$+"User-Agent: BHT300BW"+Com.Http.EOL$
+      Com.Http.Sendbuff$=Com.Http.Sendbuff$+"Content-Type: application/x-www-form-urlencoded"+Com.Http.EOL$
+      Com.Http.Sendbuff$=Com.Http.Sendbuff$+"Content-Length:"+str$(len(param$))+Com.Http.EOL$
+      Com.Http.Sendbuff$=Com.Http.Sendbuff$+Com.Http.EOL$
+      Com.Http.Sendbuff$=Com.Http.Sendbuff$+param$+Com.Http.EOLEOL$
+    end if
+
+    sendlen%=len(Com.Http.Sendbuff$)
+    sendmode%=.soSdNrm
+    call "socket.fn3" .fcSend sockfd%,Com.Http.Sendbuff$,sendlen%,sendmode%,sendsize%
+    status%=Com.Status.DataSent
+    Com.Http.SendData%=status%
+    on error goto 0
+    exit function
+
+senddata.err:
+    werr = err
+    Util.errlog("Com.Http.SendData",werr,status%)
+    resume senddata.resume
+
+senddata.resume:
+    on error goto 0
+    Com.Http.SendData%=Com.TcpIp.CloseSocket%(status%)
+    if (werr <> &h105) and (werr<>&h106) and (werr<>&h108) and (werr<>&h450) then
+      Com.Http.SendData%=Com.Status.Opened
+    end if
+  end function
+
+'------------------------------------------------------------ 
+' receive data
+'------------------------------------------------------------ 
+  function Com.Http.RecvData%(byref ret$,status%)
+    private recvlen%
+    private recvmode%
+    private recvsize%
+    private recvflag%
+
+    if status% <> Com.Status.DataSent then
+      werr=-1
+      Util.errlog("Com.Http.RecvData",werr,status%)
+      goto recvdata.resume
+    end if
+
+    on error goto recvdata.err
+
+    '-- receive data
+    recvlen%=Com.RECVSIZE
+    recvmode%=.soRvNrm
+    recvflag%=.soRvWrite
+    call "socket.fn3" .fcRecv sockfd%,Com.Http.Recvbuff$,recvlen%,recvmode%,recvsize%,recvflag%
+    status%=Com.Status.DataReceived
+    private ret%
+    ret%=val(mid$(Com.Http.Recvbuff$,10,3)) 'HTTP code      
+    if ret%<>200 then
+      ret$="ERR=>HTTP,Code:"+str$(ret%)
+      goto recvdata.resume
+    end if
+
+    '-- get content length
+    private pos%
+    pos%=instr(16,Com.Http.Recvbuff$,Com.Http.LENGTH$)
+    if pos%=0 then
+      ret$="ERR=>HTTP,Data:no length"
+      goto recvdata.resume
+    end if
+    pos%=pos%+len(Com.Http.LENGTH$)
+    private pos2%
+    pos2%=instr(pos%,Com.Http.Recvbuff$,Com.Http.EOL$)
+    if pos2%=0 then
+      ret$="ERR=>HTTP,Data:no data"
+      goto recvdata.resume
+    end if
+    private clen%
+    clen%=val(mid$(Com.Http.Recvbuff$,pos%,pos2%-pos%))
+    '-- move pointer to body
+    pos2%=instr(pos2%-1,Com.Http.Recvbuff$,Com.Http.EOLEOL$)
+    if pos2%=0 then
+      ret$="ERR=>HTTP,Data:no data"
+      goto recvdata.resume
+    end if
+
+    ret$=mid$(Com.Http.Recvbuff$,pos2%+len(Com.Http.EOLEOL$),clen%)
+    Com.Http.RecvData%=status%
+    on error goto 0
+    exit function
+
+recvdata.err:
+    werr = err
+    Util.errlog("Com.Http.RecvData",werr,status%)
+    resume recvdata.resume
+
+recvdata.resume:
+    on error goto 0
+    Com.Http.RecvData%=Com.TcpIp.CloseSocket%(status%)
+    if (werr <> &h105) and (werr<>&h106) and (werr<>&h108) and (werr<>&h450) then
+      Com.Http.RecvData%=Com.Status.Opened
+    end if
+  end function
+
+'------------------------------------------------------------ 
+' open FTP
+'------------------------------------------------------------ 
+  function Com.Ftp.Open%(status%)
+    private reply%
+
+    if status% <>Com.Status.Opened then
+      werr=-1
+      Util.errlog("Com.Ftp.Open",werr,status%)
+      goto ftpopen.resume
+    end if
+
+    on error goto ftpopen.err
+
+    '-- open
+    call "ftp.fn3" .fcFTPOpnS ftpHandle%,reply%
+'-- call "ftp.fn3" .fcFTPOpnU ftpHandle%,APP.SERV.IP$,APP.USER$,APP.PASS$,reply%
+    '-- get system directory
+    private para%
+    private newDir$[65]
+    para% = .ftDefDir
+    call "ftp.fn3" .fcFSysGet para%,newDir$
+
+    '-- set current directory
+    call "ftp.fn3" .fcCWD ftpHandle%, newDir$,reply%
+    status%=Com.Status.FtpOpened
+    print newDir$;
+    print "/"
+
+    Com.Ftp.Open%=status%
+    on error goto 0
+    exit function
+
+ftpopen.err:
+    werr = err
+    Util.errlog("Com.Ftp.Open",werr,status%)
+    resume ftpopen.resume
+
+ftpopen.resume:
+    on error goto 0
+    Com.Ftp.Open%=Com.TcpIp.Close%(status%)
+    if (werr<>&h105) and (werr<>&h450) then
+      Com.Ftp.Open%=Com.Status.DeviceOpened
+    end if
+  end function
+
+'------------------------------------------------------------ 
+' close FTP
+'------------------------------------------------------------ 
+  function Com.Ftp.Close%(status%)
+    if status% < Com.Status.FtpOpened then
+      werr=-1
+      Util.errlog("Com.Ftp.Close",werr,status%)
+      goto ftpclose.resume
+    end if
+
+    private reply%
+    call "ftp.fn3" .fcFTPClos ftpHandle%,reply%
+
+ftpclose.resume:
+    Com.Ftp.Close%=Com.Status.FtpClosed
+  end function
+
+'------------------------------------------------------------ 
+' receive file(s)
+'------------------------------------------------------------ 
+  function Com.Ftp.RecvFile%(req$,param$,byref files$(),size%,status%)
+    private reply%
+    private clntFname$: clntFname$=""
+    private crlf.type%: crlf.type%=.ftCRLF
+    private crlf.mode%: crlf.mode%=.ftRcdSepa
+    private disp.mode%: disp.mode%=.ftDisp 
+
+    if status% <> Com.Status.FtpOpened then
+      werr=-1
+      Util.errlog("Com.Ftp.RecvFile",werr,status%)
+      goto recvfile.resume
+    end if
+
+    on error goto recvfile.err
+
+    if param$="" then
+      ' -- PD4 files
+      private i%
+      private servFname$[20]
+      for i%=0 to (size%-1)
+        servFname$=files$(i%)
+        print " ";
+        print servFname$
+        call "ftp.fn3" .fcRETR ftpHandle%,servFname$,clntFname$,crlf.type%,crlf.mode%,reply%,disp.mode%
+      next
+    else
+      ' -- data file
+      call "ftp.fn3" .fcRETR ftpHandle%,req$,clntFname$,crlf.type%,crlf.mode%,reply%,param$,disp.mode%
+    end if
+
+    status%=Com.Status.FtpDataReceived
+    Com.Ftp.RecvFile%=status%
+    on error goto 0
+    exit function
+
+recvfile.err:
+    werr = err
+    Util.errlog("Com.Ftp.RecvFile",werr,status%)
+    resume recvfile.resume
+
+recvfile.resume:
+    on error goto 0
+    Com.Ftp.RecvFile%=Com.Ftp.Close%(status%)
+  end function
+
+'--------------------------------------------------------------------------
+' get php name
+'--------------------------------------------------------------------------
+  function Com.GetPhpName$(req$)
+    private phplen%
+    phplen%=instr(len(Com.Http.URLPREFIX$)+2,req$,".")-len(Com.Http.URLPREFIX$)-2
+    Com.GetPhpName$=mid$(req$,len(Com.Http.URLPREFIX$)+2,phplen%)
+  end function
+
+'------------------------------------------------------------ 
+' HTTP Request
+'------------------------------------------------------------ 
+  function Com.Http.Request$(mode%,req$,param$)[Com.RECVSIZE]
+    private startTime$[8]
+    private endTime$[8]
+
+    startTime$ = time$ '-- start measuring
+
+    private ret$[Com.RECVSIZE]
+
+    private status%
+    status%=Com.Status.Init '-- init status
+
+    '-- state machine
+    while status%<>Com.Status.DeviceClosed
+      werr=0 '-- reset error
+      select status%
+        case Com.Status.Init
+          status%=Com.TcpIp.OpenDevice%(status%)
+        case Com.Status.DeviceOpened
+          status%=Com.TcpIp.Open%(status%)
+        case Com.Status.Opened
+          status%=Com.TcpIp.OpenSocket%(status%)
+        case Com.Status.SocketConnected
+          status%=Com.Http.SendData%(mode%,req$,param$,status%)
+        case Com.Status.DataSent
+          status%=Com.Http.RecvData%(ret$,status%)
+        case Com.Status.DataReceived
+          status%=Com.TcpIp.CloseSocket%(status%)
+        case Com.Status.SocketClosed
+          status%=Com.TcpIp.Close%(status%)
+        case Com.Status.Closed
+          status%=Com.TcpIp.CloseDevice%(status%)
+      end select
+    wend
+
+    Com.Http.Request$ = ret$
+
+    endTime$=time$
+
+    APP.ELAPSEDTIME% = Util.GetSeconds%(startTime$, endTime$)
+    APP.DEBUGMSG$ = Com.GetPhpName$(req$)
+  end function
+
+'------------------------------------------------------------
+' HTTP Get
+'------------------------------------------------------------
+  function Com.Http.Get$(req$)[Com.RECVSIZE]
+    Com.Http.Get$=Com.Http.Request$(Com.Http.GetMode,req$,"")
+  end function
+
+'------------------------------------------------------------
+' HTTP Post
+'------------------------------------------------------------
+  function Com.Http.Post$(req$,param$)[Com.RECVSIZE]
+    Com.Http.Post$=Com.Http.Request$(Com.Http.PostMode,req$,param$)
+  end function
+
+'------------------------------------------------------------
+' FTP Download Program
+'------------------------------------------------------------
+  function Com.Ftp.DownloadProgram$(byref files$(),size%)[1]
+    private status%
+    status%=Com.Status.Init '-- init status
+
+    while status%<>Com.Status.DeviceClosed
+      werr=0 '-- reset error
+      select status%
+        case Com.Status.Init
+          status%=Com.TcpIp.OpenDevice%(status%)
+        case Com.Status.DeviceOpened
+          status%=Com.TcpIp.Open%(status%)
+        case Com.Status.Opened
+          status%=Com.Ftp.Open%(status%)
+        case Com.Status.FtpOpened
+          status%=Com.Ftp.RecvFile%("","",files$,size%,status%)
+        case Com.Status.FtpDataReceived
+          status%=Com.Ftp.Close%(status%)
+        case Com.Status.FtpClosed
+          status%=Com.TcpIp.Close%(status%)
+        case Com.Status.Closed
+          status%=Com.TcpIp.CloseDevice%(status%)
+      end select
+    wend
+
+    Com.Ftp.DownloadProgram$=""
+  end function
+
+'------------------------------------------------------------
+' FTP Download Data
+'------------------------------------------------------------
+  function Com.Ftp.DownloadData$(req$,param$)[1]
+    private status%
+    status%=Com.Status.Init '-- init status
+
+    while status%<>Com.Status.DeviceClosed
+      werr=0 '-- reset error
+      select status%
+        case Com.Status.Init
+          status%=Com.TcpIp.OpenDevice%(status%)
+        case Com.Status.DeviceOpened
+          status%=Com.TcpIp.Open%(status%)
+        case Com.Status.Opened
+          status%=Com.Ftp.Open%(status%)
+        case Com.Status.FtpOpened
+          status%=Com.Ftp.RecvFile%(req$,param$,Com.EmptyFiles$,0,status%)
+        case Com.Status.FtpDataReceived
+          status%=Com.Ftp.Close%(status%)
+        case Com.Status.FtpClosed
+          status%=Com.TcpIp.Close%(status%)
+        case Com.Status.Closed
+          status%=Com.TcpIp.CloseDevice%(status%)
+      end select
+    wend
+
+    Com.Ftp.DownloadData$=""
+  end function
+
+'--------------------------------------------------------------------------
+' read config
+'--------------------------------------------------------------------------
+  sub Com.ReadConfig
+    private fileNum%:fileNum% = 4
+    private flen%
+    private i%
+    private key$[16]
+    private value$[64]
+
+    open Com.ConfigFileName$ AS #fileNum%
+    field #fileNum%, 16 as key$, 64 as value$
+    flen%=lof(#fileNum%)
+  
+    for i%=1 to flen%
+      get #fileNum%,i%
+      key$=Util.Trim$(key$)
+      value$=Util.Trim$(value$)
+      select key$
+      case "http.path"
+        Com.Http.URLPREFIX$=value$
+      case "http.address"
+        Com.Http.ADDRESS$=value$
+      case "http.port"
+        Com.Http.PORT%=val(value$)
+      case "http.hostname"
+        Com.Http.HOSTNAME$=value$
+      end select
+    next
+    close #fileNum%
+
+    private r$[1]
+    if Com.Http.URLPREFIX$="" then
+      print "パスが設定されてません";
+      input r$
+    else
+      print "パス:["+Com.Http.URLPREFIX$+"]"
+    end if
+    if Com.Http.ADDRESS$="" then
+      print "HTTPｱﾄﾞﾚｽが設定されてません";
+      input r$
+    else
+      print "HTTPｱﾄﾞﾚｽ:["+Com.Http.ADDRESS$+"]"
+    end if
+    if Com.Http.PORT%=0 then
+      print "HTTPﾎﾟｰﾄが設定されてません";
+      input r$
+    else
+      print "HTTPﾎﾟｰﾄ:["+str$(Com.Http.PORT%)+"]"
+      '--input r$
+    end if
+  end sub
+
+'--------------------------------------------------------------------------
+' print wireless parameters
+'--------------------------------------------------------------------------
+  sub Com.PrintWirelessParam
+    private para%
+    private data$[32]
+
+    print "WIRELESS=>";
+    para%=1
+    call "ss.fn3" .fcParaDSGet para%,data$
+    print data$;
+    para%=2
+    call "ss.fn3" .fcParaDSGet para%,data$
+    print ","+data$;
+    para%=3
+    call "ss.fn3" .fcParaDSGet para%,data$
+    print ","+data$;
+
+  end sub
+
+'--------------------------------------------------------------------------
+' print tcp parameters
+'--------------------------------------------------------------------------
+  sub Com.PrintTcpParam
+    private para%
+    private dataS$[15]
+    private data%
+
+    print "TCP=>";
+    para%=.soDvGet
+    call "socket.fn3" .fcTSysGet para%,data%
+    print str$(data%);
+
+    para%=.soLyGet
+    call "socket.fn3" .fcTSysGet para%,data%
+    print ","+str$(data%);
+
+    para%=.soPmIPAdr
+    call "socket.fn3" .fcTSysGet para%,dataS$
+    print ","+dataS$
+
+    para%=.soPmNtMsk
+    call "socket.fn3" .fcTSysGet para%,dataS$
+    print ","+dataS$
+
+    para%=.soPmDGWay
+    call "socket.fn3" .fcTSysGet para%,dataS$
+    print ","+dataS$
+  end sub
+
+'--------------------------------------------------------------------------
+' print socket parameters
+'--------------------------------------------------------------------------
+  sub Com.PrintSocketParam(sfd%)
+    private optname%
+    private option
+    private buf$
+
+    print "SOCKFD => "+str$(sfd%);
+    optname%=.soSndBuff
+    call "socket.fn3" .fcGSckOpt sfd%,optname%,option    
+    print ":BUFF="+hex$(option)
+
+    optname%=.soRcvBuff
+    call "socket.fn3" .fcGSckOpt sfd%,optname%,option
+    print ","+str$(option);
+
+    optname%=.soMaxRT
+    call "socket.fn3" .fcGSckOpt sfd%,optname%,option
+    print ",RETRY="+str$(option);
+
+    optname%=.soTIMEWAIT
+    call "socket.fn3" .fcGSckOpt sfd%,optname%,option
+    print ",TIMEWAIT="+str$(option);
+
+    optname%=.soRTODef
+    call "socket.fn3" .fcGSckOpt sfd%,optname%,option
+    print ",RTODef="+str$(option);
+
+    optname%=.soRTOMin
+    call "socket.fn3" .fcGSckOpt sfd%,optname%,option
+    print ",RTOMin="+str$(option);
+
+    optname%=.soRTOMax
+    call "socket.fn3" .fcGSckOpt sfd%,optname%,option
+    print ",RTOMax="+str$(option)
+  end sub

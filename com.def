@@ -1,0 +1,53 @@
+'##########################################################################
+'
+' HTTP communication
+' 
+' Set the following parameters:
+'   - Com.Http.ADDRESS$
+'   - Com.Http.PORT%
+'   - Com.Http.URLPREFIX$
+' by reading CCONFIG.DAT
+'
+'##########################################################################
+
+'-- shared const variable
+const Com.Http.GetMode=0
+const Com.Http.PostMode=1
+
+const Com.Ftp.GetMode=0
+const Com.Ftp.PostMode=0
+
+const Com.SENDSIZE=512
+const Com.RECVSIZE=8192
+
+const Com.TcpIp.Http=0
+const Com.TcpIp.Ftp=1
+
+const Com.Status.Init=0
+const Com.Status.DeviceOpened=1
+const Com.Status.Opened=2
+const Com.Status.SocketCreated=3
+const Com.Status.SocketConnected=4
+const Com.Status.DataSent=5
+const Com.Status.DataReceived=6
+const Com.Status.DataReceivedEnd=7
+const Com.Status.SocketClosed=8
+const Com.Status.Closed=9
+const Com.Status.DeviceClosed=10
+
+
+'-- shared const variable
+  global Com.Http.EOL$: Com.Http.EOL$ = chr$(13)+chr$(10)
+  global Com.Http.EOLEOL$: Com.Http.EOLEOL$ = Com.Http.EOL$+Com.Http.EOL$
+  global Com.Http.LENGTH$: Com.Http.LENGTH$="Content-Length: "
+
+  global Com.ConfigFileName$[20]: Com.ConfigFileName$="CCONFIG.DAT"
+
+'-- share variable
+  global Com.Http.Sendbuff$[Com.SENDSIZE]
+  global Com.Http.Recvbuff$[Com.RECVSIZE]
+  global Com.Http.ADDRESS$[15]
+  global Com.Http.PORT%
+  global Com.Http.URLPREFIX$[100]
+  global Com.Http.HOSTNAME$[100]
+  global Com.EmptyFiles$(1)[10]

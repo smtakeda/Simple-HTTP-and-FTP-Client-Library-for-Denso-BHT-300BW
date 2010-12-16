@@ -1,0 +1,199 @@
+'##########################################################################
+'
+' test util.src
+'
+'##########################################################################
+
+'$include:'util.inc'
+'$include:'input.inc'
+'$include:'test.inc'
+'$include:'itemcach.inc'
+'$include:'util.def'
+
+'--------------------------------------------------------------------------
+  sub testMax
+    private ret
+    ret = Util.Max(2,3)
+    ok(ret=3,"util.max")
+  end sub
+
+'--------------------------------------------------------------------------
+  sub testMin
+    private ret
+    ret = Util.Min(8,-5)
+    ok(ret=-5,"util.min")
+  end sub
+
+'--------------------------------------------------------------------------
+  sub testTrim
+    private ret$[20]
+    ret$ = Util.Trim$("  TESTSTR    ")
+    ok(ret$="TESTSTR","util.trim$")
+  end sub
+
+'--------------------------------------------------------------------------
+  sub testErrlog
+    Util.errlog("COM",305,2)
+    ok(1,"util.errlog")
+  end sub
+
+'--------------------------------------------------------------------------
+  sub testTruncateStr
+    private ret$[20]
+    private src$[30]
+
+    src$="äøéöÇ∆aÇkphabet"
+    ret$=Util.TruncateStr$(src$,1,6)
+    ok(ret$="äøéöÇ∆","util.truncatestr1")
+    ret$=Util.TruncateStr$(src$,1,5)
+    ok(ret$="äøéö","util.truncatestr2")
+    ret$=Util.TruncateStr$(src$,1,8)
+    ok(ret$="äøéöÇ∆a","util.truncatestr3")
+    ret$=Util.TruncateStr$(src$,1,16)
+    ok(ret$="äøéöÇ∆aÇkphabet","util.truncatestr4")
+    ret$=Util.TruncateStr$(src$,3,6)
+    ok(ret$="éöÇ∆a","util.truncatestr5")
+  end sub
+
+'--------------------------------------------------------------------------
+  sub testStrCharIndex
+    private idx%(100)
+    private src$[20]
+    private ret%
+
+    src$="äøéöÇ∆aÇkphabet"
+
+    ret%=Util.StrCharIndex%(src$,idx%)
+    ok(ret%=11, "util.strcharindex0")
+    ok(idx%(0)=1, "util.strcharindex1")
+    ok(idx%(2)=5, "util.strcharindex2")
+    ok(idx%(3)=7, "util.strcharindex3")
+    ok(idx%(4)=8, "util.strcharindex4")
+  end sub
+
+'--------------------------------------------------------------------------
+  sub testIs1stShiftJis
+    private ret%
+    private src$[5]
+    src$="äøaéö"
+    
+    ret%=Util.Is1stShiftJis%(mid$(src$,1,1))
+    ok(ret%=1, "util.is1stshiftjis1")
+    ret%=Util.Is1stShiftJis%(mid$(src$,2,1))
+    ok(ret%=0, "util.is1stshiftjis2")
+    ret%=Util.Is1stShiftJis%(mid$(src$,3,1))
+    ok(ret%=0, "util.is1stshiftjis3")
+  end sub
+
+
+'--------------------------------------------------------------------------
+  sub testGetPageInfo
+    private total%
+    private src$[100]
+    private offset%
+    private size%
+
+    src$="31765"+TAB$+"123"+TAB$+"10"
+
+    total%=Util.GetPageInfo%(src$, offset%, size%)
+    ok(total%=31765,"util.getpageinfo:total")
+    ok(offset%=123,"util.getpageinfo:offset")
+    ok(size%=10,"util.getpageinfo:size")
+  end sub
+
+'--------------------------------------------------------------------------
+  sub testParseLineData
+    private STREOL$[1]: STREOL$=chr$(10)
+    private ret%
+    private src$[100]
+    private lines$(20)[20]
+
+    src$="10867"+STREOL$+"(2009)≤Ÿ–500ãÖ_∏ÿ±"
+
+    ret%=Util.ParseListData%(src$, lines$)
+    ok(lines$(0)="10867", "util.parselinedata1")
+    ok(lines$(1)="(2009)≤Ÿ–500ãÖ_∏ÿ±", "util.parselinedata2")
+  end sub
+
+'--------------------------------------------------------------------------
+  sub testParseListTabData
+    private STREOL$[1]: STREOL$=chr$(10)
+    private ret%
+    private src$[500]
+
+    private meta$[100]
+    private ids$(10)[100]
+    private names$(10)[100]
+    private codes$(10)[100]
+    private quantities%(10)
+    private hasEnough%(10)
+
+    private productIds&(10)
+    private productCodes$(10)[50]
+    private barCodes$(10)[50]
+    private stockTotals%(10)
+    private stockUnlimiteds%(10)
+
+    '-- test parse list tab data
+    src$="7827"+TAB$+"0"+TAB$+"10"
+    src$=src$+STREOL$+"10867"+TAB$+"(2009)≤Ÿ–500ãÖ_∏ÿ±"+TAB$+"123456789012"
+    src$=src$+STREOL$+"10847"+TAB$+"(2009)≤Ÿ–500ãÖ_ê¬"+TAB$+"123456789013"
+    src$=src$+STREOL$+"11747"+TAB$+"(V)œ≤∏€Ãß≤ ﬁ∞±ø∞ƒ"+TAB$+"123456789014"
+    src$=src$+STREOL$+"10954"+TAB$+"(V)œ≤∏€Ãß≤ ﬁ∞ñ—ïz»≤Àﬁ∞"+TAB$+"123456789015"
+    src$=src$+STREOL$+"10871"+TAB$+"(V)œ≤∏€Ãß≤ ﬁ∞ñ—ïzÀﬂ›∏"+TAB$+"123456789016"
+
+    ret%=Util.ParseListTabData%(src$, meta$, ids$, 0, names$, codes$)
+
+    ok(ids$(0)="10867","util.parselisttabdata1")
+    ok(ids$(3)="10954","util.parselisttabdata2")
+ print ids$(3)
+ Input.InputAnyKey
+    ok(names$(2)="(V)œ≤∏€Ãß≤ ﬁ∞±ø∞ƒ","util.parselisttabdata3")
+    ok(ret%=5,"util.parselisttabdata4")
+
+    '-- test parse list data 2
+    src$="2"+TAB$+"0"+TAB$+"0"
+    src$=src$+STREOL$+"4902778731635"+TAB$+"è§ïi 1"+TAB$+"7"+TAB$+"0"
+    src$=src$+STREOL$+"4912345678904"+TAB$+"è§ïi 2"+TAB$+"3"+TAB$+"3"
+    ret%=Util.ParseListTabData2%(src$, meta$, ids$, names$, quantities%, hasEnough%)
+    ok(ids$(1)="4912345678904","utilparselisttabdata5")
+    ok(hasEnough%(1)=3,"utilparselisttabdata6")
+    ok(ret%=2,"utilparselisttabdata7")
+
+    '-- test parse item cache
+    src$="10"+TAB$+"20"+TAB$+"20"
+    src$=src$+STREOL$+"1777"+TAB$+"ìdíréÆº≠∞Ωﬁƒﬁ◊≤‘∞"+TAB$+"0017874142804"+TAB$+"000000028740"+TAB$+"26"+TAB$+"0"
+    src$=src$+STREOL$+"1618"+TAB$+"êVìõå^é‘ç⁄≥∞ ∞50W"+TAB$+"0022684520636"+TAB$+"000000007934"+TAB$+"9"+TAB$+"0"
+    src$=src$+STREOL$+"23"+TAB$+"¿≤ƒﬁ∏ÿ∞›Ãﬁÿ∞Ωﬁ1470ml"+TAB$+"0037000138082"+TAB$+"000000028236"+TAB$+"0"+TAB$+"1"
+    ret%=ItemCache.ParseItemCache%(src$, meta$, productIds&(), names$(), productCodes$(), barCodes$(), stockTotals%(), stockUnlimiteds%())
+    ok(productIds&(1)=1618,"ItemCache.parseitemcache1")
+    ok(productCodes$(1)="000000007934","ItemCache.parseitemcache2")
+    ok(stockUnlimiteds%(2)=1,"ItemCache.parseitemcache3")
+    ok(ret%=3,"ItemCache.parseitemcache4")
+
+    '--
+    src$="10"+TAB$+"20"+TAB$+"20"
+    src$=src$+STREOL$+"1499"+TAB$+"∂∞ågë—è[ìdäÌƒﬁ∫”"+TAB$+"4512019971227"+TAB$+"000000029243"+TAB$+"47"+TAB$+"0"
+    ret%=ItemCache.ParseItemCache%(src$, meta$, productIds&(), names$(), productCodes$(), barCodes$(), stockTotals%(), stockUnlimiteds%())
+    ok(ret%=1,"ItemCache.parseitemcache5")
+    ok(productIds&(0)=1499,"ItemCache.parseitemcache6")
+'    Input.InputAnyKey
+  end sub
+
+'--------------------------------------------------------------------------
+Main
+  Test.Start
+
+  testMax
+  testMin
+  testTrim
+  testErrlog
+  testTruncateStr
+  testStrCharIndex
+  testIs1stShiftJis
+  testGetPageInfo
+  testParseLineData
+  testParseListTabData
+
+  Test.Finish
+

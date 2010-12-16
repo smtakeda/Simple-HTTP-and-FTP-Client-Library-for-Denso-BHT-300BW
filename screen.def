@@ -1,0 +1,5 @@
+
+'-- application version
+  global APP.VERSION$[10]: APP.VERSION$="0.920"
+  global APP.ELAPSEDTIME%: APP.ELAPSEDTIME%=0
+  global APP.DEBUGMSG$[30]: APP.DEBUGMSG$=""

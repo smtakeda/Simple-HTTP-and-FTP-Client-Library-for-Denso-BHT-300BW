@@ -1,0 +1,124 @@
+'##########################################################################
+'
+' barcode utils
+'
+'##########################################################################
+
+'$include:'bhtdef.inc'
+'$include:'const.inc'
+'$include:'input.def'
+'$include:'barcode.def'
+'$include:'util.def'
+'$include:'util.inc'
+
+'--------------------------------------------------------------------------
+' (private) get max len
+'--------------------------------------------------------------------------
+  function Barcode.maxLen%(bar$,max0%)
+    private max%: max%=0
+    select bar$
+    case Barcode.EAN13$  ' -- EAN-13ÅiJAN-13Åj, UPC-A
+      max% = 13
+    case Barcode.EAN8$   ' -- EAN-8 (JAN-8)
+      max% = 8
+    case Barcode.UPCE$   ' -- UPC-E (6 digit)
+      max% = 6
+    case Barcode.CODE39$ ' -- Code 39 (Y + 5 digit + T + 8 digit)
+      max% = 15
+    case Barcode.NW7A$   ' -- NW-7 (A + 12 digit + A)
+      max% = 14
+    case Barcode.NW7D$   ' -- NW-7 (D + 12 digit + D)
+      max% = 14
+    end select
+    Barcode.maxLen%=Util.Max(max%,max0%)
+  end function
+
+'--------------------------------------------------------------------------
+' barcode.or.key
+'--------------------------------------------------------------------------
+  function Barcode.BarcodeKey3$(bar$,bar2$,bar3$)
+    private f.no%: f.no% = 1
+    private max%
+
+    max%=Barcode.maxLen%(bar$,0)
+    max%=Barcode.maxLen%(bar2$,max%)
+    max%=Barcode.maxLen%(bar3$,max%)
+
+    private esc$: esc$ = Input.CODE.ESC$
+    private rt$[15]
+    private kb$[1]
+
+    while 1
+      if bar3$<>"" then
+        open "BAR:" as #f.no% code bar$,bar2$,bar3$
+      else
+        if bar2$<>"" then
+          open "BAR:" as #f.no% code bar$,bar2$
+        else
+          open "BAR:" as #f.no% code bar$
+        end if
+      end if
+      wait .pnEvent, (.pvEvKeyOn or .pvEvBarOn)
+      if loc(f.no%) then
+        beep
+        rt$ =input$(max%, #f.no%)
+        print rt$
+        Barcode.BarcodeKey$ = Util.Trim$(rt$) 
+        close #f.no%
+        exit function
+      else
+        close #f.no%
+        rt$ = ""
+        kb$ = input$(1)
+        while kb$<>""
+          if instr(esc$, kb$) then
+            Barcode.BarcodeKey$ = Util.Trim$(kb$)
+            exit function
+          endif
+          select kb$
+          case chr$(13)
+            Barcode.BarcodeKey$ = Util.Trim$(rt$)
+            exit function
+          case chr$(8)
+            if len(rt$) then
+              print chr$(8);
+              rt$ = left$(rt$,len(rt$)-1)
+            endif
+          case chr$(24) ' clear key
+            while len(rt$)
+              print chr$(8);
+              rt$=left$(rt$,len(rt$)-1)
+            wend
+          case else
+            if len(rt$) < max% then
+              print kb$;
+              rt$ = rt$ + kb$
+            else
+              beep
+            endif
+          end select
+          if rt$ ="" then
+            kb$=""
+          else
+            kb$=input$(1)
+          endif
+        wend
+      endif
+    wend
+  end function
+
+
+'--------------------------------------------------------------------------
+' barcode.or.key
+'--------------------------------------------------------------------------
+  function Barcode.BarcodeKey2$(bar$,bar2$)
+    Barcode.BarcodeKey2$=Barcode.BarcodeKey3$(bar$,bar2$,"")
+  end function
+
+'--------------------------------------------------------------------------
+' barcode.or.key
+'--------------------------------------------------------------------------
+  function Barcode.BarcodeKey$(bar$)
+    Barcode.BarcodeKey$=Barcode.BarcodeKey3$(bar$,"","")
+  end function
+

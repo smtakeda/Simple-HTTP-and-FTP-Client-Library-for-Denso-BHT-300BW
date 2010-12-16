@@ -1,0 +1,52 @@
+'##########################################################################
+'
+' test utils
+'
+'##########################################################################
+
+'$include:'bhtdef.inc'
+'$include:'const.inc'
+'$include:'input.inc'
+
+  public TestCnt%
+  public TestSuccessCnt%
+  public TestFailureCnt%
+
+'--------------------------------------------------------------------------
+' test finish
+'--------------------------------------------------------------------------
+  sub Test.Finish
+    print "---------------------"
+    print "Total:"+str$(TestCnt%)
+    print "Succ :"+str$(TestSuccessCnt%)+",";
+    print "Fail :"+str$(TestFailureCnt%)
+    Input.InputAnyKey
+  end sub
+
+'--------------------------------------------------------------------------
+' test start
+'--------------------------------------------------------------------------
+  sub Test.Start
+    screen Lc.SCR.KANJI,Lc.WAT.NORMAL
+    TestCnt%=0
+    TestSuccessCnt%=0
+    TestFailureCnt%=0
+  end sub
+
+'--------------------------------------------------------------------------
+' test util : ok
+'--------------------------------------------------------------------------
+  sub ok(cond, mess$)
+    screen Lc.SCR.KANJI,Lc.WAT.NORMAL
+    if cond then
+      print "OK:";
+      print mess$
+      TestSuccessCnt%=TestSuccessCnt%+1
+    else
+      print "ERR:";
+      print mess$
+      TestFailureCnt%=TestFailureCnt%+1
+      Input.InputAnyKey
+    end if
+    TestCnt%=TestCnt%+1
+  end sub

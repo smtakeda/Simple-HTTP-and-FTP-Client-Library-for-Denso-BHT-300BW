@@ -1,0 +1,7 @@
+  global Barcode.EAN13$[1]:  Barcode.EAN13$ ="A"
+  global Barcode.EAN8$[1]:   Barcode.EAN8$  ="B"
+  global Barcode.UPCE$[1]:   Barcode.UPCE$  ="C"
+  global Barcode.CODE39$[7]: Barcode.CODE39$="M:12-16"
+  global Barcode.NW7A$[6]:   Barcode.NW7A$="N:14AA"
+  global Barcode.NW7D$[6]:   Barcode.NW7D$="N:14DD"
+

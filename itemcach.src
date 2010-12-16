@@ -1,0 +1,375 @@
+'##########################################################################
+'
+' Item Cache
+'
+'##########################################################################
+
+'$include:'const.inc'
+'$include:'util.def'
+'$include:'util.inc'
+'$include:'input.def'
+'$include:'input.inc'
+'$include:'screen.def'
+'$include:'screen.inc'
+'$include:'com.def'
+'$include:'com.inc'
+'$include:'itemcach.def'
+
+'-- shared const variable
+  private ItemCache.ItemDataFileName$[20]
+  private ItemCache.fileNum%
+
+  private ItemCache.size%
+  private ItemCache.productIds&(ItemCache.RECORDCHUNK)
+  private ItemCache.productNames$(ItemCache.RECORDCHUNK)[ItemCache.NAMELEN]
+  private ItemCache.barCodes$(ItemCache.RECORDCHUNK)[ItemCache.BARCODELEN]
+  private ItemCache.productCodes$(ItemCache.RECORDCHUNK)[ItemCache.CODELEN]
+  private ItemCache.stockTotals%(ItemCache.RECORDCHUNK)
+  private ItemCache.stockUnlimiteds%(ItemCache.RECORDCHUNK)
+
+'------------------------------------------------------------ 
+' parse item cache 
+'------------------------------------------------------------ 
+  function ItemCache.ParseItemCache%(byref src$, byref meta$, byref ids&(), byref names$(), byref productCodes$(), byref barCodes$(), byref stockTotals%(), byref stockUnlimiteds%())
+    private ptr&
+    private idEnd&
+    private nameEnd&
+    private barCodeEnd&
+    private codeEnd&
+    private totalEnd&
+    private unlimitedEnd&
+
+    private cnt%
+    private srcLen&: srcLen&=len(src$)
+    private tmpLen&
+    private buf$[30]
+
+    ptr&=1 ' string pointer    
+
+    private metaEnd&
+
+    metaEnd&=instr(ptr&,src$,STREOL$)
+    if metaEnd&>0 then
+      tmpLen&=Util.Min(metaEnd&-ptr&,Util.MAXIDLEN)
+      meta$=mid$(src$,ptr&,tmpLen&)
+      ptr&=metaEnd&+len(STREOL$)
+    else
+      meta$=mid$(src$,ptr&)
+      exit function
+    end if
+
+    cnt%=0 ' array index
+
+    while ptr&<srcLen& and ptr&<>0
+      idEnd&=instr(ptr&,src$,TAB$)
+      if idEnd&>0 then
+        tmpLen&=Util.Min(idEnd&-ptr&,ItemCache.IDLEN)
+        ids&(cnt%)=val(mid$(src$,ptr&,tmpLen&))
+        nameEnd&=instr(idEnd&+1,src$,TAB$)
+        if nameEnd&>0 then
+          tmpLen&=Util.Min(nameEnd&-(idEnd&+1),ItemCache.NAMELEN)
+          buf$=mid$(src$,idEnd&+1,tmpLen&)
+          names$(cnt%)=Util.TruncateStr$(buf$,1,tmpLen&)
+          barCodeEnd&=instr(nameEnd&+1,src$,TAB$)
+          if barCodeEnd&>0 then
+            tmpLen&=Util.Min(barCodeEnd&-(nameEnd&+1),ItemCache.BARCODELEN)
+            barCodes$(cnt%)=mid$(src$,nameEnd&+1,tmpLen&)
+            codeEnd&=instr(barCodeEnd&+1,src$,TAB$)
+            if codeEnd& > 0 then
+              tmpLen&=Util.Min(codeEnd&-(barCodeEnd&+1),ItemCache.CODELEN)
+              productCodes$(cnt%)=mid$(src$,barCodeEnd&+1,tmpLen&)
+              totalEnd&=instr(codeEnd&+1,src$,TAB$)
+              if totalEnd& > 0 then
+                tmpLen&=Util.Min(totalEnd&-(codeEnd&+1),ItemCache.STOCKLEN)
+                stockTotals%(cnt%)=val(mid$(src$,codeEnd&+1,tmpLen&))
+                unlimitedEnd&=instr(totalEnd&+1,src$,STREOL$)
+                if unlimitedEnd&>0 then
+                  tmpLen&=Util.Min(unlimitedEnd&-(totalEnd&+1),ItemCache.UNLIMITEDLEN)
+                else
+                  tmpLen&=Util.Min(len(src$)+1-(totalEnd&+1),Util.MAXSTRLEN)
+                end if
+                stockUnlimiteds%(cnt%)=val(mid$(src$,totalEnd&+1,tmpLen&))
+              else
+                print "no stock total for ",ids&(cnt%)
+              end if
+            else 
+              print "no code for ",ids&(cnt%)
+            end if
+          else
+            print "no barcode for ";
+            print ids&(cnt%);
+            print " ne:";
+            print nameEnd&;
+            print " be:";
+            print barCodeEnd&
+          end if
+        else
+          print "no name for ",ids&(cnt%)
+        end if
+      else
+        print "no id"
+      end if
+      ptr&=instr(ptr&,src$,STREOL$) ' move to next line
+      if ptr&>0 then
+        ptr&=ptr&+1
+      end if
+      cnt%=cnt%+1
+    wend
+    ItemCache.ParseItemCache%=cnt%
+  end function
+
+'------------------------------------------------------------ 
+' search item
+'------------------------------------------------------------ 
+  function ItemCache.SearchItem&(key$,flag%)
+    ' search
+    private rec&
+    open ItemCache.ItemDataFileName$ AS #ItemCache.fileNum% RECORD ItemCache.RECORDLEN
+    field #ItemCache.fileNum%, ItemCache.IDLEN as ItemCache.productId$, ItemCache.NAMELEN as ItemCache.productName$, ItemCache.BARCODELEN as ItemCache.barCode$, ItemCache.CODELEN as ItemCache.productCode$, ItemCache.STOCKLEN as ItemCache.stock$, ItemCache.UNLIMITEDLEN as ItemCache.stockUnlimited$
+    select flag%
+      case BY.BARCODE
+        rec&=search (#ItemCache.fileNum%, ItemCache.barCode$, key$, 1)
+      case BY.PRODUCT.ID
+        rec&=search (#ItemCache.fileNum%, ItemCache.productId$, key$, 1)
+      case BY.PRODUCT.CODE
+        rec&=search (#ItemCache.fileNum%, ItemCache.productCode$, key$, 1)
+    end select
+    if rec&>0 then
+      get #ItemCache.fileNum%,rec&
+    else
+      ItemCache.productId$=""
+      ItemCache.productName$=""
+      ItemCache.barCode$=""
+      ItemCache.productCode$=""
+      ItemCache.stock$=""
+      ItemCache.stockUnlimited$=""
+    end if
+    close #ItemCache.fileNum%
+    ItemCache.SearchItem&=rec&
+  end function
+
+'------------------------------------------------------------ 
+' search item by barcode
+'------------------------------------------------------------ 
+  function ItemCache.SearchItemByBarcode&(key$)
+    ItemCache.SearchItemByBarcode&=ItemCache.SearchItem&(key$,BY.BARCODE)
+  end function
+	
+'------------------------------------------------------------ 
+' search item by product id
+'------------------------------------------------------------ 
+  function ItemCache.SearchItemByProductId&(key$)
+    ItemCache.SearchItemByProductId&=ItemCache.SearchItem&(key$,BY.PRODUCT.ID)
+  end function
+	
+'------------------------------------------------------------ 
+' search item by product code
+'------------------------------------------------------------ 
+  function ItemCache.SearchItemByProductCode&(key$)
+    ItemCache.SearchItemByProductCode&=ItemCache.SearchItem&(key$,BY.PRODUCT.CODE)
+  end function
+
+'------------------------------------------------------------ 
+' append item
+'------------------------------------------------------------ 
+  function ItemCache.Append%(id$,name$,code$,barcode$,stock&)
+    private flen&
+    open ItemCache.ItemDataFileName$ AS #ItemCache.fileNum% RECORD ItemCache.RECORDLEN
+    field #ItemCache.fileNum%, ItemCache.IDLEN as ItemCache.productId$, ItemCache.NAMELEN as ItemCache.productName$, ItemCache.BARCODELEN as ItemCache.barCode$, ItemCache.CODELEN as ItemCache.productCode$, ItemCache.STOCKLEN as ItemCache.stock$, ItemCache.UNLIMITEDLEN as ItemCache.stockUnlimited$
+    flen&=lof(#ItemCache.fileNum%)
+    ItemCache.productId$=id$
+    ItemCache.productCode$=code$
+    ItemCache.productName$=name$
+    ItemCache.barCode$=barcode$
+    if stock&<>999999 then
+      ItemCache.stock$=mid$(str$(stock&),2)
+      ItemCache.stockUnlimited$="0"
+    else
+      ItemCache.stock$="0"
+      ItemCache.stockUnlimited$="1"
+    end if
+    put #ItemCache.fileNum%, flen&+1
+    close #ItemCache.fileNum%
+    ItemCache.Append%=0
+  end function
+
+'------------------------------------------------------------ 
+' update barcode
+'------------------------------------------------------------ 
+  function ItemCache.UpdateBarcode%(id$,name$,code$,barcode$,stock&)
+    private rec&
+    rec&=ItemCache.SearchItemByProductId&(id$)
+    if rec&>0 then
+      open ItemCache.ItemDataFileName$ AS #ItemCache.fileNum% RECORD ItemCache.RECORDLEN
+      field #ItemCache.fileNum%, ItemCache.IDLEN as ItemCache.productId$, ItemCache.NAMELEN as ItemCache.productName$, ItemCache.BARCODELEN as ItemCache.barCode$, ItemCache.CODELEN as ItemCache.productCode$, ItemCache.STOCKLEN as ItemCache.stock$, ItemCache.UNLIMITEDLEN as ItemCache.stockUnlimited$
+      get #ItemCache.fileNum%, rec&
+      ItemCache.barCode$=barcode$ '-- update barcode
+      put #ItemCache.fileNum%, rec&
+      close #ItemCache.fileNum%
+      ItemCache.UpdateBarcode%=0
+    else
+      ItemCache.UpdateBarcode%=ItemCache.Append%(id$,name$,code$,barcode$,stock&)
+    end if
+  end function
+
+'------------------------------------------------------------ 
+' null barcode
+'------------------------------------------------------------ 
+  function ItemCache.NullBarcode%(barcode$)
+    private rec&
+    rec&=ItemCache.SearchItemByBarcode&(barcode$)
+    if rec&>0 then
+      open ItemCache.ItemDataFileName$ AS #ItemCache.fileNum% RECORD ItemCache.RECORDLEN
+      field #ItemCache.fileNum%, ItemCache.IDLEN as ItemCache.productId$, ItemCache.NAMELEN as ItemCache.productName$, ItemCache.BARCODELEN as ItemCache.barCode$, ItemCache.CODELEN as ItemCache.productCode$, ItemCache.STOCKLEN as ItemCache.stock$, ItemCache.UNLIMITEDLEN as ItemCache.stockUnlimited$
+      get #ItemCache.fileNum%, rec&
+      ItemCache.barCode$="" '-- null barcode
+      put #ItemCache.fileNum%, rec&
+      close #ItemCache.fileNum%
+    end if
+    ItemCache.NullBarcode%=0
+  end function
+
+'------------------------------------------------------------ 
+' write item cache data into file
+'------------------------------------------------------------ 
+  function ItemCache.Write%(byref idx&, total%)
+    private i%
+
+    open ItemCache.ItemDataFileName$ AS #ItemCache.fileNum% RECORD ItemCache.RECORDLEN
+    for i%=0 to ItemCache.size%-1
+      ItemCache.productId$=mid$(str$(ItemCache.productIds&(i%)),2)
+      ItemCache.productName$=ItemCache.productNames$(i%)
+      ItemCache.productCode$=ItemCache.productCodes$(i%)
+      ItemCache.barCode$=ItemCache.barCodes$(i%)
+      ItemCache.stock$=mid$(str$(ItemCache.stockTotals%(i%)),2)
+      ItemCache.stockUnlimited$=mid$(str$(ItemCache.stockUnlimiteds%(i%)),2)
+      field #ItemCache.fileNum%, ItemCache.IDLEN as ItemCache.productId$, ItemCache.NAMELEN as ItemCache.productName$, ItemCache.BARCODELEN as ItemCache.barCode$, ItemCache.CODELEN as ItemCache.productCode$, ItemCache.STOCKLEN as ItemCache.stock$, ItemCache.UNLIMITEDLEN as ItemCache.stockUnlimited$
+      put #ItemCache.fileNum%, idx&
+      idx&=idx&+1
+    next
+    close #ItemCache.fileNum%
+
+    locate 1,3
+    print mid$(str$(idx&-1),2);
+    print "/";
+    print total%;
+    print "     "
+
+    if idx&>=ItemCache.RECORDLEN or idx&>=total% then
+      ItemCache.Write%=Com.Status.DataReceivedEnd '-- end
+    else
+      ItemCache.Write%=Com.Status.SocketConnected '-- read again
+    end if
+  end function
+
+'------------------------------------------------------------ 
+' Get Http and Store into file
+'------------------------------------------------------------ 
+  function ItemCache.GetStoreFile%
+    private startTime$[8]
+    private endTime$[8]
+    startTime$ = time$ '-- start measuring
+
+    private req$[120]
+    req$=Com.Http.URLPREFIX$+"/cacheItems.php"
+
+    private ret$[Com.RECVSIZE]
+
+    private status%
+    status%=Com.Status.Init '-- init status
+
+    private offset%
+    private size%
+    private total%
+    private meta$[100]
+    private idx&
+
+    private r$[1]
+
+    offset%=0
+    idx&=1
+
+    '-- state machine
+    while status%<>Com.Status.DeviceClosed
+      select status%
+        case Com.Status.Init
+          status%=Com.TcpIp.OpenDevice%(status%)
+        case Com.Status.DeviceOpened
+          status%=Com.TcpIp.Open%(status%)
+        case Com.Status.Opened
+          status%=Com.TcpIp.OpenSocket%(status%)
+        case Com.Status.SocketConnected
+          status%=Com.Http.SendData%(Com.Http.GetMode,req$+"?o="+mid$(str$(offset%),2),"",status%)
+        case Com.Status.DataSent
+          status%=Com.Http.RecvData%(ret$,status%)
+        case Com.Status.DataReceived
+          ItemCache.size% = ItemCache.ParseItemCache%(ret$,meta$,ItemCache.productIds&,ItemCache.productNames$,ItemCache.productCodes$,ItemCache.barCodes$,ItemCache.stockTotals%,ItemCache.stockUnlimiteds%)
+          total%=Util.GetPageInfo%(meta$,offset%,size%)
+          status%=ItemCache.Write%(idx&,total%)
+          offset%=offset%+ItemCache.RECORDCHUNK
+        case Com.Status.DataReceivedEnd
+          status%=Com.TcpIp.CloseSocket%(status%)
+        case Com.Status.SocketClosed
+          status%=Com.TcpIp.Close%(status%)
+        case Com.Status.Closed
+          status%=Com.TcpIp.CloseDevice%(status%)
+      end select
+    wend
+
+    ItemCache.GetStoreFile% = 0
+
+    endTime$=time$
+
+    APP.ELAPSEDTIME% = Util.GetSeconds%(startTime$, endTime$)
+    APP.DEBUGMSG$ = ""
+  end function
+
+'------------------------------------------------------------ 
+' load item cache
+'------------------------------------------------------------ 
+  function ItemCache.load%
+    private ret%
+
+    call Screen.Init
+    call Screen.Footer
+    locate 1,1
+    print "商品ﾏｽﾀを更新しています..."
+    ret%= ItemCache.GetStoreFile%
+    if ret%=-1 then
+      call Screen.Init
+      call Screen.Footer
+      locate 1,1
+      print "商品が見つかりませんでした"
+      beep 2
+      Input.InputAnyKey
+      ItemCache.load%=0
+      exit function
+    end if
+
+    beep 1
+
+    ItemCache.load% = ItemCache.size%
+  end function
+
+'------------------------------------------------------------
+' init
+'------------------------------------------------------------
+  sub ItemCache.Init
+    ItemCache.ItemDataFileName$="ITEM.DAT"
+    ItemCache.fileNum% = 4
+  end sub
+
+'------------------------------------------------------------
+' main
+'------------------------------------------------------------
+  sub ItemCache.Main
+    private ret%
+    ItemCache.init '-- init
+    Com.ReadConfig '-- read communication config file
+    ret%=ItemCache.load%
+  end sub
+
+'------------------------------------------------------------
+Main
+  call ItemCache.Main
+  chain "init.pd4"

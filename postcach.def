@@ -1,0 +1,12 @@
+'##########################################################################
+'
+' Post Cache
+'
+'##########################################################################
+const PostCache.RECORDLEN=1000
+
+const PostCache.BARCODELEN=20
+const PostCache.NUMLEN=6
+const PostCache.IDLEN=12
+const PostCache.FUNCLEN=1
+

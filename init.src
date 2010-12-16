@@ -1,0 +1,84 @@
+'------------------------------------------------------------
+' init driver
+'------------------------------------------------------------
+'$include:'com.def'
+'$include:'com.inc'
+'$include:'input.inc'
+'$include:'screen.def'
+'$include:'screen.inc'
+'$include:'wh.def'
+
+'------------------------------------------------------------
+' update program
+'------------------------------------------------------------
+  sub Init.UpdateProgram
+    private ret$[1024]
+    private retYN$[1]
+
+    cls
+    locate 1,1
+    print "本当にﾌﾟﾛｸﾞﾗﾑを更新しますか？"
+    retYN$=Input.InputYesNo$
+    print retYN$
+    if retYN$="Y" then
+      cls
+      locate 1,1
+      print "ﾛｰﾀﾞｰをﾀﾞｳﾝﾛｰﾄﾞしています..."
+      private loader$(1)[20]
+      loader$(0)=APP.Loader2Name$
+      ret$=Com.Ftp.DownloadProgram$(loader$,1)
+      chain APP.Loader2Name$
+    end if
+  end sub
+
+
+'------------------------------------------------------------
+  const MENULENGTH = 5
+
+Main
+  private i%
+  private k$[1]
+  private ret$[40]
+  private dat$[13]
+  private src.selectionData$(MENULENGTH)
+
+  src.selectionData$(0) = "1.入庫"
+  src.selectionData$(1) = "2.出庫"
+  src.selectionData$(2) = "3.出荷"
+  src.selectionData$(3) = "4.棚卸"
+  src.selectionData$(4) = "8.ﾏｽﾀ更新"
+
+  '------ init ------
+  k$="1"
+  while k$<>"0"
+    call Screen.Init
+    call Screen.Footer
+    for i%=0 to (menuLength-1)
+      locate (i% mod 2)*12+1,2*(i%/2)+1
+      print src.selectionData$(i%)
+    next i%
+    locate ,,1 : cursor on
+    print ""
+    input "選択してください"; k$
+    select k$
+      case "1"
+        APP.func%=APP.FUNC.INBOUND%
+        chain APP.ProgramName$
+      case "2"
+        APP.func%=APP.FUNC.OUTBOUND%
+        chain APP.ProgramName$
+      case "3"
+        APP.func%=APP.FUNC.SHIPPING%
+        chain APP.ProgramName2$
+      case "4"
+        APP.func%=APP.FUNC.INVENTORY%
+        chain APP.ProgramName$
+      case "8"
+        APP.func%=APP.FUNC.ITEMCACHE%
+        chain APP.ProgramName3$
+      case "9" '-- hidden command
+        call Init.UpdateProgram
+    end select
+  wend
+
+  erase src.selectionData$

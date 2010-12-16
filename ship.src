@@ -1,0 +1,279 @@
+'------------------------------------------------------------
+' 出荷
+'--------------------------------------------------------------------------
+'$include:'const.inc'
+'$include:'util.def'
+'$include:'util.inc'
+'$include:'screen.def'
+'$include:'screen.inc'
+'$include:'input.def'
+'$include:'input.inc'
+'$include:'com.def'
+'$include:'com.inc'
+'$include:'barcode.def'
+'$include:'barcode.inc'
+'$include:'wh.def'
+
+'-- screen state
+  const SP.SCREEN.START  =1
+  const SP.SCREEN.FINISH =-1
+
+  const SP.SCREEN.USER          =0 '-- TODO: hold off
+  const SP.SCREEN.SCANINVOICE   =1
+  const SP.SCREEN.GETORDERS     =2
+  const SP.SCREEN.SCANPRODUCT   =3
+  const SP.SCREEN.CHECKPRODUCT  =4
+  const SP.SCREEN.VERIFYPRODUCT =5 '--- not used
+  const SP.SCREEN.FINISHSHIPPING=6
+
+'-- string const variable
+  const SP.IDLEN=Util.MAXIDLEN
+  const SP.ITEMLEN=Util.MAXSTRLEN
+  const SP.RECORDLEN=100
+
+  const SP.MAXITEMLINES=3
+
+  global SP.invoice.barcode$[50] ' invoice barcode
+  global SP.barcode$[15]
+  global SP.num$[10]
+
+  private SP.totalOrders%
+  private SP.groundTotalOrders%
+  private SP.barCodes$(SP.RECORDLEN)[SP.IDLEN]
+  private SP.names$(SP.RECORDLEN)[SP.ITEMLEN]
+  private SP.quantities%(SP.RECORDLEN)
+  private SP.hasEnough%(SP.RECORDLEN)
+  private SP.checks%(SP.RECORDLEN)
+
+
+'------------------------------------------------------------
+' scan invoice
+'------------------------------------------------------------
+  function SP.ScanInvoice%(func%)
+
+    SP.totalOrders%=-1
+
+    call Screen.Init
+    call Screen.Footer
+    locate 1,1
+    print "伝票のﾊﾞｰｺｰﾄﾞをｽｷｬﾝしてください"
+    locate ,,1 : cursor on
+    SP.invoice.barcode$ = Barcode.BarcodeKey3$(Barcode.CODE39$,Barcode.NW7A$,Barcode.NW7D$)
+    if instr(Input.CODE.ESC$, SP.invoice.barcode$)>0 then
+      SP.ScanInvoice%=SP.SCREEN.FINISH
+      exit function
+    end if
+
+    SP.ScanInvoice%=SP.SCREEN.GETORDERS
+  end function
+
+'------------------------------------------------------------
+' get orders
+'------------------------------------------------------------
+  function SP.GetOrders%(func%)
+    private ret$[Com.RECVSIZE]
+    private cnt%
+    private meta$[100]
+    private size%
+    private i%
+    private offset%
+
+    call Screen.Init
+    call Screen.Footer
+    locate 1,1
+    print "出荷商品情報を取得中..."
+    ret$= Com.Http.Get$(Com.Http.URLPREFIX$+"/getOrderedItem.php?t="+SP.invoice.barcode$)
+    if ret$="" then
+      ' not found...
+      locate 1,3
+      print "見つかりません"
+      Input.InputAnyKey
+      SP.GetOrders%=SP.SCREEN.SCANINVOICE
+      exit function
+    end if
+
+    '-- get list
+    cnt%=Util.ParseListTabData2%(ret$,meta$,SP.barCodes$,SP.names$, SP.quantities%, SP.hasEnough%)
+    SP.totalOrders%=Util.GetPageInfo%(meta$,offset%,size%)
+
+    if SP.totalOrders%=0 then
+      ' not found...
+      locate 1,3
+      print "見つかりません"
+      Input.InputAnyKey
+      SP.GetOrders%=SP.SCREEN.SCANINVOICE
+      exit function
+    end if
+
+    '-- reset order product list
+    SP.groundTotalOrders%=0
+    for i%=0 to SP.totalOrders%-1
+      SP.checks%(i%)=SP.quantities%(i%)
+      SP.groundTotalOrders%=SP.groundTotalOrders%+SP.checks%(i%)
+    next
+    SP.GetOrders%=SP.SCREEN.SCANPRODUCT
+  end function
+
+'------------------------------------------------------------
+' scan product
+'------------------------------------------------------------
+  function SP.ScanProduct%(func%)
+    '-- sanity check
+    if SP.totalOrders%=-1 then
+      SP.ScanProduct%=SP.SCREEN.SCANINVOICE
+      exit function
+    end if
+
+    call Screen.Init
+    call Screen.Footer
+    locate 1,1
+
+    '-- if all items were scanned, exit 
+    private cnt%: cnt%=0
+    private i%
+    for i%=0 to SP.totalOrders%-1
+      cnt%=cnt%+SP.checks%(i%)
+    next
+    if cnt%=0 then
+      print "確認が終了しました"
+      beep 3
+      Input.InputAnyKey
+      SP.ScanProduct%=SP.SCREEN.FINISHSHIPPING
+      exit function
+    end if
+
+    private cnt2%: cnt2%=0
+    for i%=0 to SP.totalOrders%-1
+      if SP.checks%(i%)>0 then
+        if cnt2%<SP.MAXITEMLINES then
+          locate 1,3+cnt2%*2
+          print left$(">"+Util.TruncateStr$(SP.names$(i%),1,19)+"                  ",19)
+          locate 20,3+cnt2%*2
+          print right$("   "+str$(SP.checks%(i%)),3);
+          cnt2%=cnt2%+1
+        else
+          locate 1,3+SP.MAXITEMLINES*2
+          print "...他...";
+        end if
+      end if
+    next
+    locate 1,1
+    print "商品をｽｷｬﾝしてください"
+    locate 
+    '--print "("+mid$(str$(cnt%),1)+"/"+mid$(str$(SP.groundTotalOrders%),1)+")"
+    locate ,,1 : cursor off
+    SP.barcode$ = Barcode.BarcodeKey2$(Barcode.EAN13$,Barcode.NW7A$)
+    if instr(Input.CODE.ESC$, SP.barcode$)>0 then
+      '-- escape
+      SP.ScanProduct%=SP.SCREEN.SCANINVOICE
+      exit function
+    end if
+
+    SP.ScanProduct%=SP.SCREEN.CHECKPRODUCT
+  end function
+
+'------------------------------------------------------------
+' check product
+'------------------------------------------------------------
+  function SP.CheckProduct%(func%)
+    call Screen.Init
+    call Screen.Footer
+    locate 1,1
+    print "商品情報を確認中..."
+
+    '-- check the barcode
+    private found%: found%=0
+    private i%: i%=0
+    while i%<SP.totalOrders%
+      if SP.barCodes$(i%)=SP.barcode$ then
+        if SP.checks%(i%)>0 then
+          SP.checks%(i%)=SP.checks%(i%)-1
+          found%=1
+          goto found.barcode
+        else
+          goto found.barcode.err
+        end if
+      end if
+      i%=i%+1
+    wend
+found.barcode:
+    if found%=0 then
+      call Screen.Init
+      call Screen.Footer
+      locate 1,1
+      print "違う商品です。その商品はﾊﾟｯｹｰｼﾞに含めないでください"
+      beep 2
+      Input.InputAnyKey
+      SP.CheckProduct%=SP.SCREEN.SCANPRODUCT
+    else
+      SP.CheckProduct%=SP.SCREEN.SCANPRODUCT
+    end if
+    exit function
+found.barcode.err:
+    print "すでにｽｷｬﾝ終了した商品です！その商品はﾊﾟｯｹｰｼﾞには含めないでください"
+    beep 2
+    Input.InputAnyKey
+    SP.CheckProduct%=SP.SCREEN.SCANPRODUCT
+  end function
+
+'------------------------------------------------------------
+' finish shipping
+'------------------------------------------------------------
+  function SP.FinishShipping%(func%)
+    private ret$[Com.RECVSIZE]
+
+    call Screen.Init
+    call Screen.Footer
+    locate 1,1
+    print "終了処理をしています..."
+    ret$= Com.Http.Post$(Com.Http.URLPREFIX$+"/finishShipping.php","t="+SP.invoice.barcode$)
+    if ret$="OK" then
+      '--print "完了!"
+      '--Input.InputAnyKey
+    else
+      print "終了処理失敗!"
+      print "もう一度出荷処理をやり直してください";
+      Input.InputAnyKey
+    end if
+    SP.FinishShipping%=SP.SCREEN.SCANINVOICE
+  end function
+
+'------------------------------------------------------------
+' main
+'------------------------------------------------------------
+  sub SP.Main(func%)
+   Private isScreen%
+   Private nextScreen%
+
+   ' read communication config file
+   Com.ReadConfig
+   
+   'init
+   isScreen% = SP.SCREEN.START
+   nextScreen% = SP.SCREEN.START
+   while nextScreen% <> SP.SCREEN.FINISH
+      'set next screen
+        if isScreen% <> nextScreen% then
+            isScreen% = nextScreen%
+        end If
+        
+        select isScreen%
+            case SP.SCREEN.SCANINVOICE
+                nextScreen% = SP.ScanInvoice%(func%)
+            case SP.SCREEN.GETORDERS
+                nextScreen% = SP.GetOrders%(func%)
+            case SP.SCREEN.SCANPRODUCT
+                nextScreen% = SP.ScanProduct%(func%)
+            case SP.SCREEN.CHECKPRODUCT
+                nextScreen% = SP.CheckProduct%(func%)
+            case SP.SCREEN.FINISHSHIPPING
+                nextScreen% = SP.FinishShipping%(func%)
+       end select
+    wend
+  end sub
+
+'------------------------------------------------------------
+Main
+  call SP.Main(APP.func%)
+  chain "init.pd4"
+

@@ -1,0 +1,4 @@
+http.path       /ecadmin/barcode
+http.address    192.168.1.193
+http.port       8765
+http.hostname   www.example.com

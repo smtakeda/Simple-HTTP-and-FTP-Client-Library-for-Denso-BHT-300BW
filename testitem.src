@@ -1,0 +1,27 @@
+
+'------------------------------------------------------------
+' search test
+'------------------------------------------------------------
+  sub ItemCache.searchtest
+    call Screen.Init
+    call Screen.Footer
+    ' search test
+    private rec&
+    private key$[ItemCache.BARCODELEN]
+
+    key$="a00000000684"
+    rec&=ItemCache.SearchItemByBarcode&(key$)
+    locate 1,1
+    print ItemCache.productName$
+
+    key$="938"
+    rec&=ItemCache.SearchItemByProductId&(key$)
+    locate 1,3
+    print ItemCache.productName$
+
+    key$="000000008390"
+    rec&=ItemCache.SearchItemByProductCode&(key$)
+    locate 1,5
+    print ItemCache.productName$
+    Input.InputAnyKey
+  end sub

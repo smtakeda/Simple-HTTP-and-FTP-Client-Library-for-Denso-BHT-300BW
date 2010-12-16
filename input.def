@@ -1,0 +1,14 @@
+'##########################################################################
+'
+' input utils
+'
+'##########################################################################
+
+ const INPUT.NUMONLY=1
+ const INPUT.ALPHNUM=0
+
+  global INPUT.EMPTYLINE$
+  INPUT.EMPTYLINE$="                      "
+
+' F4 or SFT/F4
+  global Input.CODE.ESC$: Input.CODE.ESC$="DL"

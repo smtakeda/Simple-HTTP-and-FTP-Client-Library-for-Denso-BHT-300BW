@@ -1,0 +1,94 @@
+'##########################################################################
+'
+' screen utils
+'
+'##########################################################################
+
+'$include:'bhtdef.inc'
+'$include:'const.inc'
+'$include:'screen.def'
+
+'--------------------------------------------------------------------------
+' init
+'--------------------------------------------------------------------------
+  sub Screen.Init
+    power 180               ' auto power ON
+    out .pnBLCtrl, .pvBLOn  ' backlight ON for 5 seconds
+    out .pnBLTime, 5
+    out .pnSysSts, .pvStsOn ' show system status
+    out .pnARKey,0          ' auto key repeat OFF
+    out .pnMgLng,.pvSysMSG  ' Japanese message
+
+    screen Lc.SCR.KANJI,Lc.WAT.NORMAL
+    cls
+  end sub
+
+'--------------------------------------------------------------------------
+' footer
+'--------------------------------------------------------------------------
+  sub Screen.Footer
+    '-- version
+    private v$: v$=APP.VERSION$
+    if v$="" then
+      v$="unknown"
+    end if
+    private prefix$:prefix$="v"
+
+    screen Lc.SCR.ANK,Lc.WAT.NORMAL
+
+    locate 1,12
+    private i%
+    private cnt%:cnt%=22-len(prefix$+v$)
+
+    for i%=1 to cnt%
+      print " ";
+    next
+    print prefix$+v$;
+
+    locate 1,12
+    private e%: e%=APP.ELAPSEDTIME%
+    if e%<>0 then
+      print APP.DEBUGMSG$;
+      print "-";
+      print mid$(str$(e%),2);
+      print "s";
+    end if
+
+    screen Lc.SCR.KANJI,Lc.WAT.NORMAL
+  end sub
+
+'--------------------------------------------------------------------------
+' footer Y/N
+'--------------------------------------------------------------------------
+  sub Screen.FooterYesNo
+    locate 1,8
+    print "[M1]ÇÕÇ¢   [M2]Ç¢Ç¢Ç¶"
+    Screen.Footer
+  end sub
+
+'--------------------------------------------------------------------------
+' footer "hit any key"
+'--------------------------------------------------------------------------
+  sub Screen.FooterInputOK
+    locate 1,8
+    '--print "...∑∞ÇâüÇµÇƒÇ≠ÇæÇ≥Ç¢"
+  end sub
+
+'--------------------------------------------------------------------------
+' select item header
+'--------------------------------------------------------------------------
+  sub Screen.HeaderUDLR(canUp%,canDown%)
+    locate 1,1
+    print "[";
+    if canUp%=1 then
+      print "Å£";
+    else
+      print "  ";
+    end if
+    if canDown%=1 then
+      print "Å•";
+    else
+      print "  ";
+    end if
+    print "]ëI     [ENT]äm"
+  end sub

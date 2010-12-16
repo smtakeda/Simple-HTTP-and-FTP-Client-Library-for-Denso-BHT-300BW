@@ -1,0 +1,72 @@
+Copyright (c) 2010, Shige Takeda
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+
+    * Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+    * Neither the name of the author, Shige Takeda  nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+----------------------------------------------------------
+ Description
+----------------------------------------------------------
+Simple HTTP and FTP client library for Denso BHT 300BW, a handy barcode scanner that can communicate with HTTP and FTP servers.
+http://www.denso-wave.com/
+
+All codes are written in BHT Basic and must be compiled by BHT Basic 4.0 Development Kit.
+https://www.denso-wave.com/en/adcd/product/software/bht_basic4_0/index.html
+
+This is distributed mainly to share HTTP and FTP client codes, though, more utility and cache examples are included:
+
+Typical HTTP/FTP usage is individual shot of HTTP GET/POST or FTP downaloads where TCP/IP and Devices are opened and closed on every call:
+
+- HTTP GET
+  declare function Com.Http.Get$(req$)[Com.RECVSIZE]
+
+- HTTP POST
+  declare function Com.Http.Post$(req$,param$)[Com.RECVSIZE]
+
+- FTP (download programs, i.e., PD4 files)
+  declare function Com.Ftp.DownloadProgram$(byref files$(),size%)[1]
+
+- FTP (download data)
+  declare function Com.Ftp.DownloadData$(req$,param$)[1]
+
+More advanced usage is multiple data interactions within a single TCP/IP connection using low level functions. This performs better due to less overhead of connections:
+
+  declare function Com.TcpIp.OpenDevice%(status%)
+  declare function Com.TcpIp.CloseDevice%(status%)
+  declare function Com.TcpIp.Open%(status%)
+  declare function Com.TcpIp.Close%(status%)
+  declare function Com.TcpIp.OpenSocket%(status%)
+  declare function Com.TcpIp.CloseSocket%(status%)
+  declare function Com.Http.SendData%(mode%,req$,param$,status%)
+  declare function Com.Http.RecvData%(byref ret$,status%)
+
+Take a look at other functions in *.inc.
+
+----------------------------------------------------------
+ History
+----------------------------------------------------------
+This was originally developed for a Japanese customer and delivered executables but I still keep copyright on the codes.
+
+----------------------------------------------------------
+ Examples
+----------------------------------------------------------
+These two are real codes that are being used for warehousing and shipping operations:
+- wh.src
+- ship.src
+
+Caching and advanced HTTP/FTP codes are included in the following files:
+- itemcach.src
+- postcach.src
+
+
+Guess Japanese messages or let me know if you want me to translate them :)
+Let me know if you have any suggestion/question!
+
+Thanks,
+-- Shige Takeda
+smtakeda@gmail.com

@@ -1,0 +1,91 @@
+'##########################################################################
+'
+' test input.src
+'
+'##########################################################################
+
+'$include:'input.inc'
+'$include:'test.inc'
+'$include:'input.def'
+
+'--------------------------------------------------------------------------
+  sub testInputAnyKey
+    private ret
+    print "hit any key"
+    Input.InputAnyKey
+    ok(1,"input.inputanykey")
+  end sub
+
+'--------------------------------------------------------------------------
+  sub testInputYesNo
+    private ret$[1]
+    print "hit M1 key"
+    ret$=Input.InputYesNo$
+    ok(ret$="Y","input.inputyesno")
+    print "hit M2 key"
+    ret$=Input.InputYesNo$
+    ok(ret$="N","input.inputyesno")
+  end sub
+
+'--------------------------------------------------------------------------
+  sub testInputUDLR
+    private ret$[1]
+
+    print "Hit F4 key"
+    ret$=Input.InputUDLR$
+    ok(ret$="D","input.inputUDLR1")
+    print "Hit F5 key"
+    ret$=Input.InputUDLR$
+    ok(ret$="E","input.inputUDLR2")
+    print "Hit F6 key"
+    ret$=Input.InputUDLR$
+    ok(ret$="F","input.inputUDLR3")
+    print "Hit F7 key"
+    ret$=Input.InputUDLR$
+    ok(ret$="G","input.inputUDLR4")
+    print "Hit F8 key"
+    ret$=Input.InputUDLR$
+    ok(ret$="H","input.inputUDLR5")
+    print "Hit ENT key"
+    ret$=Input.InputUDLR$
+    ok(ret$=chr$(13),"input.inputUDLR6")
+    
+  end sub
+
+'--------------------------------------------------------------------------
+  sub testInput
+    private ret$[100]
+    private slen%
+    private i%
+
+    print "type numeric chars [0-9]"
+    ret$=Input.Input$(2,INPUT.NUMONLY)
+    slen%=len(ret$)
+
+    ok(slen%<=2,"input.input1")
+
+    private a$[1]
+    private anyNonNumeric%:anyNonNumeric%=0
+
+    for i%=1 to slen%
+      a$=mid$(ret$,i%,1)
+      if (a$<"0" or a$>"9") and a$<>"-" then
+        anyNonNumeric%=1
+      end if
+    next
+
+    ok(anyNonNumeric%=0,"input.input2")
+
+  end sub
+
+'--------------------------------------------------------------------------
+
+Main
+  Test.Start
+
+  testInputAnyKey
+  testInputYesNo
+  testInputUDLR
+  testInput
+
+  Test.Finish

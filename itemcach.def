@@ -1,0 +1,27 @@
+'##########################################################################
+'
+' Item Cache
+'
+'##########################################################################
+' record length. Sync this value with one in server code
+const ItemCache.RECORDLEN=10000
+const ItemCache.RECORDCHUNK=20
+
+const ItemCache.IDLEN=12
+const ItemCache.BARCODELEN=20
+const ItemCache.NAMELEN=30
+const ItemCache.CODELEN=20
+const ItemCache.STOCKLEN=6
+const ItemCache.UNLIMITEDLEN=1
+
+const BY.BARCODE=0
+const BY.PRODUCT.ID=1
+const BY.PRODUCT.CODE=2
+
+  global ItemCache.productId$[ItemCache.IDLEN]
+  global ItemCache.productName$[ItemCache.NAMELEN]
+  global ItemCache.productCode$[ItemCache.CODELEN]
+  global ItemCache.barCode$[ItemCache.BARCODELEN]
+  global ItemCache.stock$[ItemCache.STOCKLEN]
+  global ItemCache.stockUnlimited$[ItemCache.UNLIMITEDLEN]
+

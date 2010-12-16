@@ -1,0 +1,27 @@
+'##########################################################################
+'
+' test barcode.src
+'
+'##########################################################################
+
+'$include:'barcode.inc'
+'$include:'test.inc'
+
+'--------------------------------------------------------------------------
+  sub testBarcodeKey
+    private ret$[20]
+    print "scan JAN code"
+    ret$=Barcode.BarcodeKey$("A")
+    ok(len(ret$)=13,"barcode.barcodekey1")
+    print "type JAN code"
+    ret$=Barcode.BarcodeKey$("A")
+    ok(len(ret$)<=13,"barcode.barcodekey2")
+  end sub
+
+'--------------------------------------------------------------------------
+Main
+  Test.Start
+
+  testBarcodeKey
+
+  Test.Finish

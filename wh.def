@@ -1,0 +1,19 @@
+  '-- parameter passed from menu module to main module
+  common APP.func%
+
+  '-- values for APP.func%
+  global APP.FUNC.INBOUND%: APP.FUNC.INBOUND%=0
+  global APP.FUNC.INVENTORY%: APP.FUNC.INVENTORY%=1
+  global APP.FUNC.OUTBOUND%: APP.FUNC.OUTBOUND%=2
+  global APP.FUNC.SHIPPING%: APP.FUNC.SHIPPING%=3
+  global APP.FUNC.ITEMCACHE%: APP.FUNC.ITEMCACHE%=4
+
+  '-- program name(s)
+  global APP.LoaderName$: APP.LoaderName$="INIT.PD4"
+  global APP.Loader2Name$: APP.Loader2Name$="INIT2.PD4"
+  global APP.ProgramName$: APP.ProgramName$="WH.PD4"
+  global APP.ProgramName2$: APP.ProgramName2$="SHIP.PD4"
+  global APP.ProgramName3$: APP.ProgramName3$="ITEMCACH.PD4"
+
+  global APP.CConfigName$: APP.CConfigName$="CCONFIG.DAT"
+

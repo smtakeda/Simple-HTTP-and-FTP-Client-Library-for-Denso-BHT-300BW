@@ -1,0 +1,343 @@
+'##########################################################################
+'
+' common subroutines and functions
+'
+'##########################################################################
+
+'$include:'bhtdef.inc'
+'$include:'const.inc'
+'$include:'util.def'
+
+'--------------------------------------------------------------------------
+' max
+'--------------------------------------------------------------------------
+  function Util.Max(a%,b%)
+    if a%<b% then
+      Util.Max=b%
+    else
+      Util.Max=a%
+    end if
+  end function
+
+'--------------------------------------------------------------------------
+' min
+'--------------------------------------------------------------------------
+  function Util.Min(a%,b%)
+    if a%>b% then
+      Util.Min=b%
+    else
+      Util.Min=a%
+    end if
+  end function
+
+'--------------------------------------------------------------------------
+' trim spaces
+'--------------------------------------------------------------------------
+  function Util.Trim$(src$)
+    if len(src$)=0 then
+      Util.Trim$=src$
+      exit function
+    end if
+
+    private pos%:pos%=1
+    private pos2%:pos2%=len(src$)
+
+    while mid$(src$,pos%,1)=" "
+      pos%=pos%+1
+    wend
+
+    while mid$(src$,pos2%,1)=" " and pos2%>pos%
+      pos2%=pos2%-1
+    wend
+    Util.Trim$=mid$(src$,pos%,pos2%-pos%+1)
+  end function
+
+'--------------------------------------------------------------------------
+' parse tab separated list data to store into ids$ and names$
+'--------------------------------------------------------------------------
+  function Util.ParseListTabData%(byref src$, byref meta$, byref ids$(), idOffset%, byref names$(), byref codes$())
+    private ptr%
+    private idEnd%
+    private nameEnd%
+    private codeEnd%
+    private id$[Util.MAXIDLEN]
+    private name$[Util.MAXSTRLEN]
+    private code$[20]
+    private cnt%
+    private srcLen%: srcLen%=len(src$)
+    private tmpLen%
+
+    private r$[1]
+
+    ptr%=1 ' string pointer
+
+    private metaEnd%
+    metaEnd%=instr(ptr%,src$,STREOL$)
+    if metaEnd%>0 then
+      tmpLen%=Util.Min(metaEnd%-ptr%,Util.MAXIDLEN)
+      meta$=mid$(src$,ptr%,tmpLen%)
+      ptr%=metaEnd%+len(STREOL$)
+    else
+      meta$=mid$(src$,ptr%)
+      exit function
+    end if
+    
+    cnt%=0 ' array index
+
+    while ptr%<srcLen% and ptr%<>0
+      idEnd%=instr(ptr%,src$,TAB$)
+      if idEnd%>0 then
+        tmpLen%=Util.Min(idEnd%-ptr%,Util.MAXIDLEN)
+        id$=mid$(src$,ptr%,tmpLen%)
+        ids$(idOffset%+cnt%)=id$
+        nameEnd%=instr(idEnd%+1,src$,TAB$)
+        if nameEnd%>0 then
+          tmpLen%=Util.Min(nameEnd%-(idEnd%+1),Util.MAXSTRLEN)
+          name$=mid$(src$,idEnd%+1,tmpLen%)
+          names$(idOffset%+cnt%)=name$
+          codeEnd%=instr(nameEnd%+1,src$,STREOL$)
+          if codeEnd%>0 then
+            tmpLen%=Util.Min(codeEnd%-(nameEnd%+1),20)
+          else
+            tmpLen%=Util.Min(len(src$)+1-(nameEnd%+1),20)
+          end if
+          code$=mid$(src$,nameEnd%+1,tmpLen%)
+          codes$(idOffset%+cnt%)=code$
+          cnt%=cnt%+1
+        else
+          ' no more tab?
+          nameEnd%=instr(idEnd%+1,src$,TAB$)
+          if nameEnd%>0 then
+            print "no name for id=["+id$+"]"
+          else
+            tmpLen%=Util.Min(len(mid$(src$,idEnd%+1)),Util.MAXSTRLEN)
+            names$(idOffset%+cnt%)=mid$(src$,idEnd%+1,tmpLen%)
+            cnt%=cnt%+1
+          end if
+        end if
+      else
+        print "no id"
+      end if
+      ptr%=instr(ptr%,src$,STREOL$) ' move to next line
+      if ptr%>0 then
+        ptr%=ptr%+1
+      end if
+    wend
+    Util.ParseListTabData%=cnt%
+  end function
+
+
+'--------------------------------------------------------------------------
+' parse tab separated list data to store into ids$, names$, quantities%
+' and has_enough
+'--------------------------------------------------------------------------
+  function Util.ParseListTabData2%(byref src$, byref meta$, byref ids$(), byref names$(), byref quantities%(), byref hasEnough%())
+    private ptr%
+    private idEnd%
+    private nameEnd%
+    private quantityEnd%
+    private hasEnoughEnd%
+
+    private cnt%
+    private srcLen%: srcLen%=len(src$)
+    private tmpLen%
+
+    ptr%=1 ' string pointer
+
+    private metaEnd%
+
+    metaEnd%=instr(ptr%,src$,STREOL$)
+    if metaEnd%>0 then
+      tmpLen%=Util.Min(metaEnd%-ptr%,Util.MAXIDLEN)
+      meta$=mid$(src$,ptr%,tmpLen%)
+      ptr%=metaEnd%+len(STREOL$)
+    else
+      meta$=mid$(src$,ptr%)
+      exit function
+    end if
+    
+    cnt%=0 ' array index
+
+    while ptr%<srcLen% and ptr%<>0
+      idEnd%=instr(ptr%,src$,TAB$)
+      if idEnd%>0 then
+        tmpLen%=Util.Min(idEnd%-ptr%,Util.MAXIDLEN)
+        ids$(cnt%)=mid$(src$,ptr%,tmpLen%)
+        nameEnd%=instr(idEnd%+1,src$,TAB$)
+        if nameEnd%>0 then
+          tmpLen%=Util.Min(nameEnd%-(idEnd%+1),Util.MAXSTRLEN)
+          names$(cnt%)=mid$(src$,idEnd%+1,tmpLen%)
+          quantityEnd%=instr(nameEnd%+1,src$,TAB$)
+          if quantityEnd%>0 then
+            tmpLen%=Util.Min(quantityEnd%-(nameEnd%+1),Util.MAXSTRLEN)
+            quantities%(cnt%)=val(mid$(src$,nameEnd%+1,tmpLen%))
+            hasEnoughEnd%=instr(nameEnd%+1,src$,STREOL$)
+            if hasEnoughEnd%>0 then
+              tmpLen%=Util.Min(hasEnoughEnd%-(quantityEnd%+1),Util.MAXSTRLEN)
+            else
+              tmpLen%=Util.Min(len(src$)+1-(quantityEnd%+1),Util.MAXSTRLEN)
+            end if
+            hasEnough%(cnt%)=val(mid$(src$,quantityEnd%+1,tmpLen%))
+          else
+            print "no quantity"
+          end if
+        else
+          print "no name"
+        end if
+      else
+        print "no id"
+      end if
+      ptr%=instr(ptr%,src$,STREOL$) ' move to next line
+      if ptr%>0 then
+        ptr%=ptr%+1
+      end if
+      cnt%=cnt%+1
+    wend
+    Util.ParseListTabData2%=cnt%
+  end function
+
+'--------------------------------------------------------------------------
+' split message and data
+'--------------------------------------------------------------------------
+  function Util.ParseListData%(byref src$, byref lines$())
+    private lineEnd%
+    private ptr%
+    private cnt%
+
+    cnt%=0 ' array index
+    ptr%=1 ' string pointer
+
+    lineEnd%=instr(src$,STREOL$)
+    while lineEnd%>0
+      lines$(cnt%)=mid$(src$,ptr%,lineEnd%-ptr%)
+      ptr%=lineEnd%+len(STREOL$)
+      cnt%=cnt%+1
+      lineEnd%=instr(ptr%,src$,STREOL$)
+    wend
+    lines$(cnt%)=mid$(src$,ptr%)
+    cnt%=cnt%+1
+    Util.ParseListData%=cnt%
+  end function
+
+'--------------------------------------------------------------------------
+' get page info from meta string
+'--------------------------------------------------------------------------
+  function Util.GetPageInfo%(byref src$, byref offset%, byref size%)
+    private itemStart%
+    private itemEnd%
+    private total%
+
+    itemEnd%=instr(src$,TAB$)
+
+    total%=val(left$(src$,itemEnd%-1))
+
+    itemStart%=itemEnd%+len(TAB$)
+    itemEnd%=instr(itemStart%,src$,TAB$)
+    offset%=val(mid$(src$,itemStart%,itemEnd%-itemStart%))
+
+    size%=val(mid$(src$,itemEnd%+len(TAB$)))
+
+    Util.GetPageInfo%=total%
+  end function
+
+'--------------------------------------------------------------------------
+' is 1st shift-jis
+'--------------------------------------------------------------------------
+  function Util.Is1stShiftJis%(ch$)
+    private v%: v%=asc(ch$)
+    if v%>=&h81 and v%<=&h9f or v%>=&he0 and v%<=&hef then
+      Util.Is1stShiftJis%=1
+    else
+      Util.Is1stShiftJis%=0
+    end if
+  end function
+
+'--------------------------------------------------------------------------
+' generate string character index
+'--------------------------------------------------------------------------
+  function Util.StrCharIndex%(src$, byref idx%())
+    private pos%:
+    private slen%: slen%=len(src$)
+    private ch$
+    private ptr%
+
+    ptr%=0 ' pointer
+    pos%=1 ' string index
+
+    while pos%<=slen%
+      idx%(ptr%)=pos%
+      ch$=mid$(src$,pos%,1)
+      if Util.Is1stShiftJis%(ch$)=1 then
+        pos%=pos%+1
+      end if
+      pos%=pos%+1
+      ptr%=ptr%+1
+    wend
+    Util.StrCharIndex%=ptr%
+  end function
+
+'--------------------------------------------------------------------------
+' truncate a string
+'--------------------------------------------------------------------------
+  function Util.TruncateStr$(src$,iniPos%,maxlen%)[100]
+    private pos%:
+    private ch$
+    private slen%
+    private tmpStr$[100]
+    private skip%
+
+    slen%=len(mid$(src$,iniPos%))
+    slen%=Util.Min(30,slen%)
+    tmpStr$=mid$(src$,iniPos%,slen%)
+
+    slen%=len(tmpStr$)
+
+    if maxlen%>=slen% then
+      Util.TruncateStr$=tmpStr$
+      exit function
+    end if
+
+    slen%=Util.Min(slen%,maxlen%)
+    pos%=1
+
+    while pos%<=slen%
+      ch$=mid$(tmpStr$,pos%,1)
+      if Util.Is1stShiftJis%(ch$)=1 then
+        skip%=2
+      else
+        skip%=1
+      end if
+      pos%=pos%+skip%
+    wend
+    if pos%=maxlen%+2 then
+      pos%=pos%-3
+    else
+      pos%=pos%-1
+    end if
+    Util.TruncateStr$=mid$(src$,iniPos%,pos%)
+  end function
+
+'--------------------------------------------------------------------------
+' get seconds
+'--------------------------------------------------------------------------
+  function Util.GetSeconds%(startTime$, endTime$)
+    private startTs
+    startTs = val(mid$(startTime$,1,2))*3600
+    startTs = startTs+val(mid$(startTime$,4,2))*60
+    startTs = startTs+val(mid$(startTime$,7,2))
+    private endTs
+    endTs = val(mid$(endTime$,1,2))*3600
+    endTs = endTs +val(mid$(endTime$,4,2))*60
+    endTs = endTs +val(mid$(endTime$,7,2))
+    Util.GetSeconds% = (endTs-startTs)
+  end function
+
+'--------------------------------------------------------------------------
+' error log
+'--------------------------------------------------------------------------
+  sub Util.errlog(prefix$,werr,status%)
+    private a$[1]
+    print "ERR: "+prefix$+": =>"+hex$(werr)+"@"+mid$(str$(status%),2)
+    input "ã‚Ìî•ñ‚ğ‹L˜^‚µ‚ÄŠÇ—Ò‚É’m‚ç‚¹‚Ä‚­‚¾‚³‚¢: "; a$
+  end sub
+

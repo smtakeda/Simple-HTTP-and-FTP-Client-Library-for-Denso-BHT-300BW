@@ -1,0 +1,232 @@
+'##########################################################################
+'
+' input utils
+'
+'##########################################################################
+'$include:'bhtdef.inc'
+'$include:'const.inc'
+'$include:'util.inc'
+'$include:'screen.inc'
+'$include:'input.def'
+
+'--------------------------------------------------------------------------
+' Input (escape with F4 or SFT+F4)
+'--------------------------------------------------------------------------
+  function Input.Input$(max%,isnum%)
+    private esc$: esc$ = Input.CODE.ESC$
+    private rt$[50]
+    private kb$[1]
+
+    while 1
+      wait .pnEvent, (.pvEvKeyOn)
+      rt$ = ""
+      kb$ = input$(1)
+      while kb$<>""
+        if instr(esc$, kb$) then
+          Input.Input$ = kb$
+          exit function
+        endif
+        select kb$
+        case chr$(13)
+          Input.Input$ = rt$
+          exit function
+        case chr$(8)
+          if len(rt$) then
+            print chr$(8);
+            rt$ = left$(rt$,len(rt$)-1)
+          endif
+        case chr$(24) ' clear key
+          while len(rt$)
+            print chr$(8);
+            rt$=left$(rt$,len(rt$)-1)
+          wend
+        case else
+          if len(rt$) < max% and ((isnum%=INPUT.NUMONLY and (kb$>="0" and kb$<="9")) or isnum%=INPUT.ALPHNUM) then
+            print kb$;
+            rt$ = rt$ + kb$
+          else
+            beep 1
+          endif
+        end select
+        if rt$ ="" then
+          kb$=""
+        else
+          kb$=input$(1)
+        endif
+      wend
+    wend
+  end function
+
+'--------------------------------------------------------------------------
+' Input Y/N
+'--------------------------------------------------------------------------
+  function Input.InputYesNo$[1]
+    Screen.FooterYesNo
+
+    private k$[1]: k$=""
+    on key (30) gosub KEY.YN.M1
+    on key (31) gosub KEY.YN.M2
+    key (30) on
+    key (31) on
+    while k$=""
+      timea=5
+      wait .pnEvent, .pvEvTma0
+    wend
+    Input.InputYesNo$=k$
+    exit function
+KEY.YN.M1
+    k$="Y"
+    key (30) off
+    key (31) off
+    return
+KEY.YN.M2
+    k$="N"
+    key (30) off
+    key (31) off
+    return
+  end function
+
+'--------------------------------------------------------------------------
+' Input any key
+'--------------------------------------------------------------------------
+  sub Input.InputAnyKey
+    Screen.FooterInputOK
+    'flush key buffer
+    while inkey$<>""
+    wend
+    'detect any key
+    while inkey$=""
+      wait .pnEvent, (.pvEvKeyOn)
+    wend
+  end sub
+
+'--------------------------------------------------------------------------
+' Input Up,Down,Left,Right,ENT,ESC
+'--------------------------------------------------------------------------
+  function Input.InputUDLR$[1]
+
+    private k$[1]
+    while 1
+      wait .pnEvent, (.pvEvKeyOn)
+      k$=inkey$
+      select k$
+        case "D"
+          Input.InputUDLR$=k$
+          exit function
+        case "E"
+          Input.InputUDLR$=k$
+          exit function
+        case "F"
+          Input.InputUDLR$=k$
+          exit function
+        case "G"
+          Input.InputUDLR$=k$
+          exit function
+        case "H"
+          Input.InputUDLR$=k$
+          exit function
+        case chr$(13)
+          Input.InputUDLR$=k$
+          exit function
+      end select
+    wend
+  end function
+
+'--------------------------------------------------------------------------
+' Select list
+'--------------------------------------------------------------------------
+  function Input.SelectList%(byref lines$(),cnt%)
+    call Screen.Init
+    private k$[1]
+    private pos%:pos%=0
+    private spos%:spos%=0
+    private selected%: selected%=0
+    private done%: done%=0
+    private canUp%
+    private canDown%
+    private maxslen%: maxslen%=len(INPUT.EMPTYLINE$)
+    private curslen%
+    private idxlen%
+    private idx%
+    private linesPos%(500)
+    
+    while done%=0
+      idxlen%=Util.StrCharIndex%(lines$(pos%),linesPos%)
+      locate 1,3
+      print INPUT.EMPTYLINE$;
+      if pos%>0 then
+        locate 1,3
+        if pos%>1 then
+          canUp%=1
+        else
+          canUp%=0
+        end if
+        print Util.TruncateStr$(lines$(pos%-1),1,maxslen%)
+      end if
+      locate 1,5
+      print INPUT.EMPTYLINE$;
+      locate 1,5
+      screen ,Lc.RAT.REVERSE
+      print Util.TruncateStr$(lines$(pos%)+INPUT.EMPTYLINE$,linesPos%(spos%),maxslen%)
+      screen ,Lc.RAT.NORMAL
+      locate 1,7
+      print INPUT.EMPTYLINE$;
+      if pos%+1<cnt% then
+        if pos%+2<cnt% then
+          canDown%=1
+        else
+          canDown%=0
+        end if
+        locate 1,7
+        print Util.TruncateStr$(lines$(pos%+1),1,maxslen%)
+      end if
+
+      Screen.HeaderUDLR(canUp%,canDown%)
+      Screen.Footer
+
+      ' key
+      k$=Input.InputUDLR$
+      select k$
+        case chr$(13) ' ENT
+          done%=1
+          selected%=1
+        case "D"      ' Escape
+          done%=1
+          selected%=0
+        case "E"      ' UP
+          if pos%>0 then
+            pos%=pos%-1
+          else
+            beep 1
+          end if
+          spos%=0
+        case "F"      ' DOWN
+          if pos%<cnt%-1 then
+            pos%=pos%+1
+          else
+            beep 1
+          end if
+          spos%=0
+        case "G" ' LEFT
+          if spos%>0 then
+            spos%=spos%-4
+            if spos%<0 then
+              spos%=0
+            end if
+          end if
+        case "H" ' RIGHT
+          if idxlen%-1>spos% then
+            spos%=spos%+4
+            if spos%>idxlen%-1 then
+              spos%=idxlen%-1
+            end if
+          end if
+      end select
+
+      if selected%=1 then
+        Input.SelectList%=pos%
+      else
+        Input.SelectList%=-1
+      end if
+    wend
+  end function

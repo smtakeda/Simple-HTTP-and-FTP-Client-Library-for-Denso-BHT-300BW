@@ -1,0 +1,34 @@
+'------------------------------------------------------------
+' init2 - loader loader
+'------------------------------------------------------------
+'$include:'com.def'
+'$include:'com.inc'
+'$include:'wh.def'
+
+'------------------------------------------------------------
+' update program
+'------------------------------------------------------------
+  sub Init.UpdateProgram
+    private ret$[1024]
+    private programs$(10)[20]
+
+    programs$(0)=APP.LoaderName$
+    programs$(1)=APP.ProgramName$
+    programs$(2)=APP.ProgramName2$
+    programs$(3)=APP.ProgramName3$
+
+    cls
+    locate 1,1
+    print "Ãﬂ€∏ﬁ◊—Ç¿ﬁ≥›€∞ƒﬁÇµÇƒÇ¢Ç‹Ç∑..."
+    ret$=Com.Ftp.DownloadProgram$(programs$,4)
+
+    print "ê›íËílÃß≤ŸÇ¿ﬁ≥›€∞ƒﬁÇµÇƒÇ¢Ç‹Ç∑..."
+    ret$=Com.Ftp.DownloadData$(APP.CConfigName$,"16,64")
+    beep 1
+  end sub
+
+
+'------------------------------------------------------------
+Main
+  call Init.UpdateProgram
+  chain "init.pd4"
